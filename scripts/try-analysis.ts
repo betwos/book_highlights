@@ -13,7 +13,7 @@ import { detectMapping } from "../src/lib/csv/detect";
 import { rowsToHighlights } from "../src/lib/csv/rows";
 import { generateTakeaways } from "../src/lib/ai/takeaways";
 import { generateChapters } from "../src/lib/ai/chapters";
-import { sumUsage } from "../src/lib/ai/client";
+import { sumUsage } from "../src/lib/ai/provider";
 import { costCents } from "../src/lib/ai/cost";
 
 async function main() {

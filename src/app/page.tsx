@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { currentUserId } from "@/lib/user";
 import { highlightSetHash } from "@/lib/hash";
-import { MODEL, PROMPT_VERSION } from "@/lib/analysis";
+import { currentModel, PROMPT_VERSION } from "@/lib/analysis";
 import { BookCard, type AnalysisBadge } from "@/components/book-card";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/primitives";
@@ -31,7 +31,7 @@ export default async function LibraryPage() {
       else if (
         latest.highlightSetHash === currentHash &&
         latest.promptVersion === PROMPT_VERSION &&
-        latest.model === MODEL
+        latest.model === currentModel()
       )
         badge = "ready";
       else badge = "stale";

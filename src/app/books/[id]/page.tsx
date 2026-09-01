@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { currentUserId } from "@/lib/user";
 import { highlightSetHash } from "@/lib/hash";
-import { MODEL, PROMPT_VERSION } from "@/lib/analysis";
+import { currentModel, PROMPT_VERSION } from "@/lib/analysis";
 import { Button } from "@/components/ui/button";
 import { BookView, type Tab } from "@/components/book-view";
 import type { AnalysisDto } from "@/components/analysis-panel";
@@ -42,7 +42,7 @@ export default async function BookPage({
     latest?.status === "succeeded" &&
     (latest.highlightSetHash !== currentHash ||
       latest.promptVersion !== PROMPT_VERSION ||
-      latest.model !== MODEL);
+      latest.model !== currentModel());
 
   const initialAnalysis: AnalysisDto | null = latest
     ? {
