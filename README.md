@@ -17,13 +17,15 @@ no Docker and no local Postgres.
 
 ```bash
 npm install
-cp .env.example .env.local     # fill in DATABASE_URL and ANTHROPIC_API_KEY
+cp .env.example .env           # fill in DATABASE_URL and ANTHROPIC_API_KEY
 npx prisma migrate dev         # applies prisma/migrations
 npm run seed                   # 2 books, 40 highlights from fixtures/readwise-sample.csv
 npm run dev
 ```
 
-`.env.local`:
+Use `.env`, not `.env.local`. The Prisma CLI reads only `.env`, while Next.js reads both (with
+`.env.local` winning where they overlap), so keeping everything in `.env` means `prisma migrate`
+and the running app see the same values. Both files are gitignored.
 
 | Variable | Notes |
 |---|---|
