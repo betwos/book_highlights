@@ -3,7 +3,8 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { currentUserId } from "@/lib/user";
 import { parseCsv, assertSize, CsvError, MAX_CSV_BYTES } from "@/lib/csv/parse";
-import { detectMapping, isMappingValid } from "@/lib/csv/detect";
+import { isMappingValid } from "@/lib/csv/detect";
+import { resolveMapping } from "@/lib/csv/resolve";
 import { groupRows } from "@/lib/csv/group";
 
 export const maxDuration = 60;
@@ -38,7 +39,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
-  const mapping = detectMapping(parsed.headers);
+  const resolved = await resolveMapping(currentUserId(), parsed.headers, parsed.rows);
+  const { mapping } = resolved;
   if (!isMappingValid(mapping)) {
     return NextResponse.json(
       {
@@ -79,6 +81,8 @@ export async function POST(req: Request) {
     rowCount: parsed.rows.length,
     headers: parsed.headers,
     mapping,
+    mappingSources: resolved.sources,
+    aiError: resolved.aiError,
     groups,
   });
 }

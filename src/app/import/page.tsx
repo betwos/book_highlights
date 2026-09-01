@@ -8,6 +8,7 @@ import { Dropzone } from "@/components/import/dropzone";
 import { ColumnMapper } from "@/components/import/column-mapper";
 import { GroupReview, type GroupDecision, type PreviewGroup } from "@/components/import/group-review";
 import { emptyMapping, type Mapping } from "@/lib/csv/detect";
+import type { MappingSources } from "@/lib/csv/aliases";
 import { plural } from "@/lib/utils";
 
 type Preview = {
@@ -16,6 +17,8 @@ type Preview = {
   rowCount: number;
   headers: string[];
   mapping: Mapping;
+  mappingSources?: MappingSources;
+  aiError?: string | null;
   groups: PreviewGroup[];
 };
 
@@ -163,7 +166,13 @@ export default function ImportPage() {
             {plural(preview.rowCount, "row")}
           </p>
 
-          <ColumnMapper headers={preview.headers} mapping={mapping} onChange={setMapping} />
+          <ColumnMapper
+            headers={preview.headers}
+            mapping={mapping}
+            sources={preview.mappingSources}
+            aiError={preview.aiError}
+            onChange={setMapping}
+          />
 
           <GroupReview
             groups={preview.groups}

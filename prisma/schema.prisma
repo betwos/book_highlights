@@ -86,6 +86,23 @@ model Analysis {
   @@index([bookId, highlightSetHash, promptVersion, model])
 }
 
+/// A remembered header -> canonical field decision. The first file that says
+/// "quote" costs one model call; every later file with that header is free and
+/// deterministic (SPEC 8.3 — mapping is still always shown and editable).
+model ColumnAlias {
+  id           String   @id @default(cuid())
+  userId       String   @default("local")
+  headerKey    String // normalized header: lowercased, separators stripped
+  headerSample String // the header as spelled in the file that taught us this
+  field        String? // canonical field name, or null for "do not import"
+  source       String // "user" | "llm"
+  timesSeen    Int      @default(1)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, headerKey])
+}
+
 enum ImportStatus {
   pending
   committed

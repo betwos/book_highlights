@@ -27,9 +27,15 @@ const RECOGNIZED: Record<CanonicalField, string[]> = {
   highlightedAt: ["Highlighted at", "Date", "Created"],
 };
 
-/** Case- and space-insensitive header key. */
-function key(header: string): string {
+/** Case- and space-insensitive header key. Also the persisted alias key. */
+export function headerKey(header: string): string {
   return header.toLowerCase().replace(/[\s_-]+/g, "");
+}
+
+const key = headerKey;
+
+export function isCanonicalField(value: unknown): value is CanonicalField {
+  return typeof value === "string" && (CANONICAL_FIELDS as readonly string[]).includes(value);
 }
 
 const LOOKUP: Map<string, CanonicalField[]> = (() => {

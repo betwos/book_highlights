@@ -60,6 +60,13 @@ and the running app see the same values. Both files are gitignored.
 - **Imports are idempotent by construction.** Highlights are deduped on
   `sha256(normalizeForHash(text))` behind a unique constraint, so re-importing next month's
   cumulative Readwise export inserts only the new rows.
+- **Column mapping is learned once, then free.** An import resolves headers in three passes:
+  header detection, then decisions remembered in `ColumnAlias`, then one model call for whatever
+  is still unrecognized. Whatever you press Import with is written back as a `user` alias, so a
+  file whose highlight column is called `quote` (or `percent`, or `timestamp`) asks the model
+  exactly once and maps itself from then on. The mapping is always shown and always editable —
+  each field is tagged *from header*, *remembered*, or *matched by AI* — and if the API is down,
+  detection and memory still apply and you map the rest by hand.
 - **Editing a prompt requires bumping `PROMPT_VERSION`** in `src/lib/ai/prompts.ts`. It is part of
   the analysis cache key; editing a prompt without bumping it serves output from the old prompt.
 
@@ -68,6 +75,7 @@ and the running app see the same values. Both files are gitignored.
 ```
 prisma/          schema, migrations, seed
 fixtures/        readwise-sample.csv — 2 books, 40 highlights
+                 quote-export-sample.csv — non-Readwise headers, exercises column matching
 scripts/         try-analysis.ts — exercise the AI layer alone
 src/app/         routes and route handlers
 src/actions/     Server Actions (books, highlights)

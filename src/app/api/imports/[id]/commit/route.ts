@@ -4,6 +4,8 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { currentUserId } from "@/lib/user";
 import { CANONICAL_FIELDS, emptyMapping, isMappingValid, type Mapping } from "@/lib/csv/detect";
+import { aliasesToRemember } from "@/lib/csv/aliases";
+import { rememberAliases } from "@/lib/csv/alias-store";
 import { groupKey } from "@/lib/csv/group";
 import { rowsToHighlights } from "@/lib/csv/rows";
 import type { CsvRow } from "@/lib/csv/parse";
@@ -145,6 +147,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     totalImported += imported;
     totalSkipped += skipped;
   }
+
+  // The reader just reviewed this mapping and pressed Import, which makes it the
+  // authoritative answer for these headers — including the columns they chose to
+  // leave out. Remembering it is what stops the next file asking the model again.
+  const headers = Object.keys(stagedRows[0] ?? {});
+  await rememberAliases(userId, aliasesToRemember(headers, mapping, "user")).catch(() => undefined);
 
   await prisma.importBatch.update({
     where: { id: batch.id },
