@@ -1,9 +1,22 @@
 import { prisma } from "@/lib/db";
-import { describeApiError, sumUsage, EMPTY_USAGE, type Usage } from "./client";
+import { getProvider, sumUsage, EMPTY_USAGE, type Usage } from "./provider";
 import { costCents } from "./cost";
 import { generateTakeaways } from "./takeaways";
 import { generateChapters } from "./chapters";
 import type { Takeaway, Chapter } from "./schemas";
+
+/**
+ * Provider-aware error text. Falls back to the raw message when the provider
+ * itself cannot be constructed (an unknown `AI_PROVIDER`, say), so the failure
+ * still reaches the `error` column instead of throwing inside the catch.
+ */
+function describeError(err: unknown): string {
+  try {
+    return getProvider().describeError(err);
+  } catch {
+    return err instanceof Error ? err.message : String(err);
+  }
+}
 
 /**
  * The analysis job body (SPEC 9.8). Catches everything: an unhandled throw
@@ -46,7 +59,7 @@ export async function runAnalysis(analysisId: string): Promise<void> {
         where: { id: analysisId },
         data: {
           status: "failed",
-          error: describeApiError(takeawaysResult.reason),
+          error: describeError(takeawaysResult.reason),
           completedAt: new Date(),
         },
       });
@@ -66,7 +79,7 @@ export async function runAnalysis(analysisId: string): Promise<void> {
       usages.push(chaptersResult.value.usage);
     } else {
       // A missing chapter outline must never cost the reader their takeaways.
-      chaptersMeta = { bookRecognized: false, caveat: describeApiError(chaptersResult.reason) };
+      chaptersMeta = { bookRecognized: false, caveat: describeError(chaptersResult.reason) };
     }
 
     const usage = sumUsage(usages.length > 0 ? usages : [EMPTY_USAGE]);
@@ -91,7 +104,7 @@ export async function runAnalysis(analysisId: string): Promise<void> {
     await prisma.analysis
       .update({
         where: { id: analysisId },
-        data: { status: "failed", error: describeApiError(err), completedAt: new Date() },
+        data: { status: "failed", error: describeError(err), completedAt: new Date() },
       })
       .catch(() => undefined);
   }

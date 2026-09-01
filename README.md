@@ -33,6 +33,9 @@ and the running app see the same values. Both files are gitignored.
 | `ANTHROPIC_API_KEY` | Used for analysis generation only. |
 | `STORAGE_DRIVER` | `local` (writes to `public/uploads/`, gitignored) or `blob`. |
 | `BLOB_READ_WRITE_TOKEN` | Only when `STORAGE_DRIVER=blob`. |
+| `AI_PROVIDER` | Optional, defaults to `anthropic` — the only implementation today. |
+| `ANTHROPIC_MODEL` | Optional, defaults to `claude-opus-5`. Pricing follows the model. |
+| `MAP_REDUCE_TOKEN_THRESHOLD` | Optional, defaults to `120000`. Lower it to exercise map-reduce. |
 
 ## Scripts
 
@@ -67,6 +70,14 @@ and the running app see the same values. Both files are gitignored.
   exactly once and maps itself from then on. The mapping is always shown and always editable —
   each field is tagged *from header*, *remembered*, or *matched by AI* — and if the API is down,
   detection and memory still apply and you map the rest by hand.
+- **The model API sits behind one seam.** `src/lib/ai/provider.ts` defines an `AiProvider`
+  interface — `generateStructured`, `countTokens`, `describeError`, plus a pricing table —
+  and `src/lib/ai/providers/anthropic.ts` implements it. Everything above that line is
+  provider-neutral: prompts, schemas, citation validation, map-reduce, the job row, the UI.
+  Adding a provider means writing one file and registering it in `FACTORIES`.
+  Worth knowing before you do: prompt caching (the frozen system prefix), adaptive thinking, and
+  the effort setting have no clean cross-provider equivalent, so a second implementation either
+  gives up the cache saving or approximates it, and token counting is provider-specific.
 - **Editing a prompt requires bumping `PROMPT_VERSION`** in `src/lib/ai/prompts.ts`. It is part of
   the analysis cache key; editing a prompt without bumping it serves output from the old prompt.
 
@@ -80,6 +91,7 @@ scripts/         try-analysis.ts — exercise the AI layer alone
 src/app/         routes and route handlers
 src/actions/     Server Actions (books, highlights)
 src/components/  UI
-src/lib/         db, hash, storage, csv/, ai/
+src/lib/         db, hash, storage, csv/
+src/lib/ai/      provider.ts (the seam) + providers/, prompts, schemas, citations, run
 tests/           vitest
 ```

@@ -1,6 +1,5 @@
 import { z } from "zod";
-import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
-import { anthropic, MODEL, THINKING, usageFrom, type Usage } from "./client";
+import { getProvider, EMPTY_USAGE, type Usage } from "./provider";
 import { CANONICAL_FIELDS, isCanonicalField, type CanonicalField } from "@/lib/csv/detect";
 import type { CsvRow } from "@/lib/csv/parse";
 
@@ -86,22 +85,19 @@ export type MatchedColumns = {
  */
 export async function matchColumns(headers: string[], rows: CsvRow[]): Promise<MatchedColumns> {
   if (headers.length === 0) {
-    return { assignments: [], usage: usageFrom(null) };
+    return { assignments: [], usage: { ...EMPTY_USAGE } };
   }
 
-  const message = await anthropic.messages.parse({
-    model: MODEL,
-    max_tokens: MAX_TOKENS,
-    thinking: THINKING,
-    system: [{ type: "text", text: COLUMNS_SYSTEM, cache_control: { type: "ephemeral" } }],
-    output_config: { effort: "low", format: zodOutputFormat(ColumnMatchSchema) },
+  const { value, usage } = await getProvider().generateStructured({
+    system: COLUMNS_SYSTEM,
     messages: [{ role: "user", content: renderColumns(headers, rows) }],
+    schema: ColumnMatchSchema,
+    maxTokens: MAX_TOKENS,
   });
 
-  const parsed = message.parsed_output;
   const known = new Set(headers);
 
-  const assignments = (parsed?.assignments ?? [])
+  const assignments = (value?.assignments ?? [])
     .filter((a) => known.has(a.header))
     .map((a) => ({
       header: a.header,
@@ -110,5 +106,5 @@ export async function matchColumns(headers: string[], rows: CsvRow[]): Promise<M
       reason: a.reason,
     }));
 
-  return { assignments, usage: usageFrom(message.usage) };
+  return { assignments, usage };
 }

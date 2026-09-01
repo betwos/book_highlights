@@ -1,5 +1,5 @@
 import { matchColumns } from "@/lib/ai/columns";
-import { describeApiError } from "@/lib/ai/client";
+import { getProvider } from "@/lib/ai/provider";
 import { detectMapping, headerKey } from "./detect";
 import {
   aliasMap,
@@ -11,6 +11,18 @@ import {
 } from "./aliases";
 import { loadAliases, rememberAliases } from "./alias-store";
 import type { CsvRow } from "./parse";
+
+/**
+ * Provider-aware error text that still works when the provider itself cannot be
+ * constructed (an unknown `AI_PROVIDER`), the same guard `runAnalysis` uses.
+ */
+function describeError(err: unknown): string {
+  try {
+    return getProvider().describeError(err);
+  } catch {
+    return err instanceof Error ? err.message : String(err);
+  }
+}
 
 export type ResolveResult = ResolvedMapping & {
   /** Non-fatal: the model was unreachable, so only detection and memory applied. */
@@ -44,7 +56,7 @@ export async function resolveMapping(
     ({ assignments } = await matchColumns(unknown, rows));
   } catch (err) {
     // An import must still be possible with the API down — the reader maps by hand.
-    return { ...resolved, aiError: describeApiError(err) };
+    return { ...resolved, aiError: describeError(err) };
   }
 
   const merged = mergeAiAssignments(resolved, assignments);

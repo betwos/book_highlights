@@ -1,13 +1,4 @@
-import {
-  anthropic,
-  MODEL,
-  MAX_TOKENS,
-  OUTPUT_EFFORT,
-  THINKING,
-  sumUsage,
-  usageFrom,
-  type Usage,
-} from "./client";
+import { getProvider, sumUsage, type ProviderMessage, type Usage } from "./provider";
 import { MAP_SYSTEM, REDUCE_SYSTEM } from "./prompts";
 import { CandidateThemesSchema, TakeawaysSchema, type CandidateTheme, type Takeaway } from "./schemas";
 import {
@@ -20,25 +11,22 @@ import {
   type PromptHighlight,
 } from "./citations";
 import { renderBookHeader, type BookMeta } from "./types";
-import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 
 /** Above this many input tokens the single call is replaced by map-reduce. */
-export const MAP_REDUCE_TOKEN_THRESHOLD = 120_000;
+export const MAP_REDUCE_TOKEN_THRESHOLD = Number(
+  process.env.MAP_REDUCE_TOKEN_THRESHOLD ?? 120_000,
+);
 export const CHUNK_SIZE = 50;
 
-/**
- * Real token count via the API — never a character-count heuristic (SPEC 9.6).
- */
+/** Real token count via the provider — never a character-count heuristic. */
 export async function countPromptTokens(system: string, userText: string): Promise<number> {
-  const res = await anthropic.messages.countTokens({
-    model: MODEL,
-    system: [{ type: "text", text: system }],
-    messages: [{ role: "user", content: userText }],
-  });
-  return res.input_tokens;
+  return getProvider().countTokens(system, userText);
 }
 
-export function chunkHighlights<T>(highlights: T[], size = CHUNK_SIZE): { items: T[]; offset: number }[] {
+export function chunkHighlights<T>(
+  highlights: T[],
+  size = CHUNK_SIZE,
+): { items: T[]; offset: number }[] {
   const chunks: { items: T[]; offset: number }[] = [];
   for (let i = 0; i < highlights.length; i += size) {
     chunks.push({ items: highlights.slice(i, i + size), offset: i });
@@ -51,29 +39,22 @@ async function mapChunk(
   chunk: PromptHighlight[],
   offset: number,
 ): Promise<{ candidates: CandidateTheme[]; usage: Usage }> {
-  const message = await anthropic.messages.parse({
-    model: MODEL,
-    max_tokens: MAX_TOKENS,
-    thinking: THINKING,
-    // System block first and cached: chunks after the first read the same prefix.
-    system: [{ type: "text", text: MAP_SYSTEM, cache_control: { type: "ephemeral" } }],
-    output_config: { effort: OUTPUT_EFFORT, format: zodOutputFormat(CandidateThemesSchema) },
+  const { value, usage } = await getProvider().generateStructured({
+    system: MAP_SYSTEM,
     messages: [
       {
         role: "user",
         content: `${renderBookHeader(book)}\n\nHighlights in this chunk:\n\n${renderHighlights(chunk, offset)}`,
       },
     ],
+    schema: CandidateThemesSchema,
   });
 
-  const usage = usageFrom(message.usage);
-  const parsed = message.parsed_output;
-  if (!parsed) return { candidates: [], usage };
+  if (!value) return { candidates: [], usage };
 
   // A chunk only ever sees its own ids; silently discard anything else.
   const chunkLookup = buildLookup(chunk, offset);
-  const candidates = dropInvalidCitations(parsed.candidates, chunkLookup);
-  return { candidates, usage };
+  return { candidates: dropInvalidCitations(value.candidates, chunkLookup), usage };
 }
 
 function renderCandidates(candidates: CandidateTheme[]): string {
@@ -87,42 +68,40 @@ async function reduce(
   candidates: CandidateTheme[],
   lookup: HighlightLookup,
 ): Promise<{ takeaways: Takeaway[]; usage: Usage }> {
-  const userText = `${renderBookHeader(book)}\n\nCandidate themes:\n\n${renderCandidates(candidates)}`;
+  const provider = getProvider();
   const usages: Usage[] = [];
-
-  const messages: Parameters<typeof anthropic.messages.stream>[0]["messages"] = [
-    { role: "user", content: userText },
+  const messages: ProviderMessage[] = [
+    {
+      role: "user",
+      content: `${renderBookHeader(book)}\n\nCandidate themes:\n\n${renderCandidates(candidates)}`,
+    },
   ];
 
   for (let attempt = 0; attempt < 2; attempt++) {
-    // The reduce output is the largest of the run; stream it so a long
+    // The reduce output is the largest of the run — stream it so a long
     // generation cannot hit the request timeout.
-    const stream = anthropic.messages.stream({
-      model: MODEL,
-      max_tokens: MAX_TOKENS,
-      thinking: THINKING,
-      system: [{ type: "text", text: REDUCE_SYSTEM, cache_control: { type: "ephemeral" } }],
-      output_config: { effort: OUTPUT_EFFORT, format: zodOutputFormat(TakeawaysSchema) },
+    const { value, usage } = await provider.generateStructured({
+      system: REDUCE_SYSTEM,
       messages,
+      schema: TakeawaysSchema,
+      stream: true,
     });
-    const message = await stream.finalMessage();
-    usages.push(usageFrom(message.usage));
+    usages.push(usage);
 
-    const parsed = message.parsed_output;
-    if (!parsed) throw new Error("The model returned no parseable takeaways.");
+    if (!value) throw new Error("The model returned no parseable takeaways.");
 
-    const invalid = invalidCitations(parsed.takeaways, lookup);
-    if (invalid.length === 0) return { takeaways: parsed.takeaways, usage: sumUsage(usages) };
+    const invalid = invalidCitations(value.takeaways, lookup);
+    if (invalid.length === 0) return { takeaways: value.takeaways, usage: sumUsage(usages) };
 
     if (attempt === 0) {
       messages.push(
-        { role: "assistant", content: JSON.stringify(parsed) },
+        { role: "assistant", content: JSON.stringify(value) },
         { role: "user", content: citationRetryMessage(invalid, lookup) },
       );
       continue;
     }
 
-    return { takeaways: dropInvalidCitations(parsed.takeaways, lookup), usage: sumUsage(usages) };
+    return { takeaways: dropInvalidCitations(value.takeaways, lookup), usage: sumUsage(usages) };
   }
 
   throw new Error("Unreachable");

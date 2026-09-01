@@ -1,14 +1,4 @@
-import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
-import {
-  anthropic,
-  MODEL,
-  MAX_TOKENS,
-  OUTPUT_EFFORT,
-  THINKING,
-  sumUsage,
-  usageFrom,
-  type Usage,
-} from "./client";
+import { getProvider, sumUsage, type ProviderMessage, type Usage } from "./provider";
 import { TAKEAWAYS_SYSTEM } from "./prompts";
 import { TakeawaysSchema, type Takeaway } from "./schemas";
 import {
@@ -37,40 +27,36 @@ async function singleCall(
   highlights: PromptHighlight[],
   lookup: HighlightLookup,
 ): Promise<{ takeaways: Takeaway[]; usage: Usage }> {
+  const provider = getProvider();
   const usages: Usage[] = [];
-  const messages: Parameters<typeof anthropic.messages.parse>[0]["messages"] = [
+  const messages: ProviderMessage[] = [
     { role: "user", content: userMessage(book, highlights) },
   ];
 
   for (let attempt = 0; attempt < 2; attempt++) {
-    const message = await anthropic.messages.parse({
-      model: MODEL,
-      max_tokens: MAX_TOKENS,
-      thinking: THINKING,
-      // System block first, cached — the retry shares this prefix.
-      system: [{ type: "text", text: TAKEAWAYS_SYSTEM, cache_control: { type: "ephemeral" } }],
-      output_config: { effort: OUTPUT_EFFORT, format: zodOutputFormat(TakeawaysSchema) },
+    const { value, usage } = await provider.generateStructured({
+      system: TAKEAWAYS_SYSTEM,
       messages,
+      schema: TakeawaysSchema,
     });
-    usages.push(usageFrom(message.usage));
+    usages.push(usage);
 
-    const parsed = message.parsed_output;
-    if (!parsed) throw new TakeawaysError("The model returned no parseable takeaways.");
+    if (!value) throw new TakeawaysError("The model returned no parseable takeaways.");
 
-    const invalid = invalidCitations(parsed.takeaways, lookup);
-    if (invalid.length === 0) return { takeaways: parsed.takeaways, usage: sumUsage(usages) };
+    const invalid = invalidCitations(value.takeaways, lookup);
+    if (invalid.length === 0) return { takeaways: value.takeaways, usage: sumUsage(usages) };
 
     if (attempt === 0) {
       // Retry once, naming the offending ids and repeating the constraint.
       messages.push(
-        { role: "assistant", content: JSON.stringify(parsed) },
+        { role: "assistant", content: JSON.stringify(value) },
         { role: "user", content: citationRetryMessage(invalid, lookup) },
       );
       continue;
     }
 
     // Second failure: drop the invalid ids, then the takeaways left with none.
-    return { takeaways: dropInvalidCitations(parsed.takeaways, lookup), usage: sumUsage(usages) };
+    return { takeaways: dropInvalidCitations(value.takeaways, lookup), usage: sumUsage(usages) };
   }
 
   throw new TakeawaysError("Unreachable");

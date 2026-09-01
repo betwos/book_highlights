@@ -1,7 +1,7 @@
 import { after, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { currentUserId } from "@/lib/user";
-import { currentHighlightSetHash, MODEL, PROMPT_VERSION } from "@/lib/analysis";
+import { currentHighlightSetHash, currentModel, PROMPT_VERSION } from "@/lib/analysis";
 import { runAnalysis } from "@/lib/ai/run";
 
 export const maxDuration = 300;
@@ -28,7 +28,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         status: "succeeded",
         highlightSetHash: hash,
         promptVersion: PROMPT_VERSION,
-        model: MODEL,
+        model: currentModel(),
       },
       orderBy: { createdAt: "desc" },
       select: { id: true },
@@ -40,7 +40,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     data: {
       bookId: book.id,
       status: "queued",
-      model: MODEL,
+      model: currentModel(),
       promptVersion: PROMPT_VERSION,
       highlightSetHash: hash,
       highlightCount: count,
