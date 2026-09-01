@@ -1,0 +1,100 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Book {
+  id            String      @id @default(cuid())
+  userId        String      @default("local")
+  title         String
+  subtitle      String?
+  author        String
+  isbn          String?
+  publisher     String?
+  publishedYear Int?
+  pageCount     Int?
+  coverUrl      String?
+  notes         String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  highlights    Highlight[]
+  analyses      Analysis[]
+
+  @@index([userId, updatedAt])
+}
+
+model Highlight {
+  id            String       @id @default(cuid())
+  bookId        String
+  book          Book         @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  text          String
+  note          String?
+  location      String?
+  locationType  String? // "page" | "location" | "offset" | null
+  color         String?
+  tags          String[]     @default([])
+  highlightedAt DateTime?
+  orderIndex    Int          @default(0)
+  contentHash   String
+  importBatchId String?
+  importBatch   ImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@unique([bookId, contentHash])
+  @@index([bookId, orderIndex])
+}
+
+model ImportBatch {
+  id            String       @id @default(cuid())
+  filename      String
+  rowCount      Int
+  importedCount Int          @default(0)
+  skippedCount  Int          @default(0)
+  mapping       Json
+  stagedRows    Json?
+  status        ImportStatus @default(pending)
+  createdAt     DateTime     @default(now())
+  highlights    Highlight[]
+}
+
+model Analysis {
+  id               String         @id @default(cuid())
+  bookId           String
+  book             Book           @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  status           AnalysisStatus @default(queued)
+  model            String
+  promptVersion    String
+  highlightSetHash String
+  highlightCount   Int
+  takeaways        Json?
+  chapters         Json?
+  chaptersMeta     Json? // { bookRecognized, caveat? }
+  error            String?
+  tokensIn         Int?
+  tokensOut        Int?
+  cachedTokensRead Int?
+  costCents        Int?
+  createdAt        DateTime       @default(now())
+  completedAt      DateTime?
+
+  @@index([bookId, createdAt])
+  @@index([bookId, highlightSetHash, promptVersion, model])
+}
+
+enum ImportStatus {
+  pending
+  committed
+  discarded
+}
+
+enum AnalysisStatus {
+  queued
+  running
+  succeeded
+  failed
+}

@@ -1,0 +1,101 @@
+@import "tailwindcss";
+
+/*
+  Reading-first: serif for highlight and takeaway prose, system sans for chrome.
+  A muted palette with one accent, used only for actions and citation chips.
+*/
+:root {
+  --background: #faf9f7;
+  --surface: #ffffff;
+  --surface-muted: #f3f1ed;
+  --foreground: #23201c;
+  --muted-foreground: #6b6559;
+  --border: #e2ddd4;
+  --accent: #9a5b33;
+  --accent-foreground: #ffffff;
+  --accent-soft: #f3e6dc;
+  --danger: #a3352b;
+  --confidence-high: #3f7d54;
+  --confidence-medium: #b8862f;
+  --confidence-low: #9a9387;
+  --flash: #fbeccd;
+  --radius: 0.625rem;
+}
+
+.dark {
+  --background: #171513;
+  --surface: #1f1c19;
+  --surface-muted: #262220;
+  --foreground: #ece7df;
+  --muted-foreground: #a29a8e;
+  --border: #332e29;
+  --accent: #d08b5c;
+  --accent-foreground: #1a1613;
+  --accent-soft: #33251b;
+  --danger: #e0796c;
+  --confidence-high: #6ba97e;
+  --confidence-medium: #d3a962;
+  --confidence-low: #7d766b;
+  --flash: #3b3221;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-foreground: var(--foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-soft: var(--accent-soft);
+  --color-danger: var(--danger);
+  --radius-base: var(--radius);
+  --font-serif: ui-serif, Georgia, "Iowan Old Style", "Times New Roman", serif;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background: var(--accent-soft);
+  }
+}
+
+@layer components {
+  .prose-reading {
+    font-family: var(--font-serif);
+    line-height: 1.7;
+    max-width: 68ch;
+  }
+
+  /* Citation target flash (~1.2s). */
+  .flash-target {
+    animation: flash-bg 1.2s ease-out;
+  }
+
+  @keyframes flash-bg {
+    0%,
+    35% {
+      background-color: var(--flash);
+    }
+    100% {
+      background-color: transparent;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flash-target {
+    animation-duration: 0.01ms;
+  }
+}
