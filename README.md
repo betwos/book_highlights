@@ -72,9 +72,11 @@ and the running app see the same values. Both files are gitignored.
   detection and memory still apply and you map the rest by hand.
 - **The model API sits behind one seam.** `src/lib/ai/provider.ts` defines an `AiProvider`
   interface — `generateStructured`, `countTokens`, `describeError`, plus a pricing table —
-  and `src/lib/ai/providers/anthropic.ts` implements it. Everything above that line is
+  and `src/lib/ai/providers/{anthropic,gemini}.ts` implement it. Everything above that line is
   provider-neutral: prompts, schemas, citation validation, map-reduce, the job row, the UI.
-  Adding a provider means writing one file and registering it in `FACTORIES`.
+  Switch with `AI_PROVIDER=gemini` plus `GEMINI_API_KEY`; adding a third means writing one file
+  and registering it in `FACTORIES`. Note that `model` is part of the analysis cache key, so
+  switching provider marks existing analyses stale rather than serving another model's output.
   Worth knowing before you do: prompt caching (the frozen system prefix), adaptive thinking, and
   the effort setting have no clean cross-provider equivalent, so a second implementation either
   gives up the cache saving or approximates it, and token counting is provider-specific.

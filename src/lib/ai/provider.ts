@@ -84,9 +84,11 @@ export interface AiProvider {
 }
 
 import { createAnthropicProvider } from "./providers/anthropic";
+import { createGeminiProvider } from "./providers/gemini";
 
 const FACTORIES: Record<string, () => AiProvider> = {
   anthropic: createAnthropicProvider,
+  gemini: createGeminiProvider,
 };
 
 let cached: AiProvider | null = null;
