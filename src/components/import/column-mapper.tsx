@@ -31,12 +31,15 @@ export function ColumnMapper({
   mapping,
   sources,
   aiError,
+  unassigned = [],
   onChange,
 }: {
   headers: string[];
   mapping: Mapping;
   sources?: MappingSources;
   aiError?: string | null;
+  /** Headers with no decision yet — the reason this file is asking for approval. */
+  unassigned?: string[];
   onChange: (mapping: Mapping) => void;
 }) {
   return (
@@ -52,6 +55,19 @@ export function ColumnMapper({
         <p className="mt-2 text-sm text-[var(--muted-foreground)]">
           Unrecognized columns could not be matched automatically ({aiError}). Map them by hand
           below.
+        </p>
+      ) : null}
+
+      {unassigned.length > 0 ? (
+        <p className="mt-2 text-sm text-[var(--muted-foreground)]">
+          No decision yet for{" "}
+          {unassigned.map((header, i) => (
+            <span key={header}>
+              {i > 0 ? ", " : ""}
+              <span className="font-medium text-[var(--foreground)]">{header}</span>
+            </span>
+          ))}
+          . Give each one a field below, or approve as-is to leave them out of the import.
         </p>
       ) : null}
 

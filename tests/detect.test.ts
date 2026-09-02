@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { detectMapping, isMappingValid, emptyMapping } from "@/lib/csv/detect";
+import {
+  detectMapping,
+  isMappingValid,
+  emptyMapping,
+  unassignedHeaders,
+} from "@/lib/csv/detect";
 
 const READWISE_HEADERS = [
   "Highlight",
@@ -51,5 +56,36 @@ describe("detectMapping", () => {
     expect(isMappingValid(emptyMapping())).toBe(false);
     expect(isMappingValid(detectMapping(["Title", "Author"]))).toBe(false);
     expect(isMappingValid(detectMapping(["Text"]))).toBe(true);
+  });
+});
+
+describe("unassignedHeaders", () => {
+  it("reports headers that are neither mapped nor deliberately ignored", () => {
+    const mapping = detectMapping(READWISE_HEADERS);
+
+    // Detection alone leaves two of Readwise's own columns undecided.
+    expect(unassignedHeaders(READWISE_HEADERS, mapping)).toEqual([
+      "Amazon Book ID",
+      "Document tags",
+    ]);
+  });
+
+  it("treats a remembered 'never import' header as decided", () => {
+    const mapping = detectMapping(READWISE_HEADERS);
+
+    expect(
+      unassignedHeaders(READWISE_HEADERS, mapping, ["Amazon Book ID", "Document tags"]),
+    ).toEqual([]);
+  });
+
+  it("ignores case and spacing when matching a header to its decision", () => {
+    const mapping = { ...emptyMapping(), text: "highlight_text" };
+
+    expect(unassignedHeaders(["Highlight Text", "Extra"], mapping)).toEqual(["Extra"]);
+    expect(unassignedHeaders(["Extra"], mapping, ["  EXTRA  "])).toEqual([]);
+  });
+
+  it("returns every header when nothing has been decided", () => {
+    expect(unassignedHeaders(["A", "B"], emptyMapping())).toEqual(["A", "B"]);
   });
 });

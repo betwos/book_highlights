@@ -82,6 +82,7 @@ export async function POST(req: Request) {
     headers: parsed.headers,
     mapping,
     mappingSources: resolved.sources,
+    ignoredHeaders: resolved.ignoredHeaders,
     aiError: resolved.aiError,
     groups,
   });

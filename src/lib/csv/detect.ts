@@ -80,3 +80,26 @@ export function detectMapping(headers: string[]): Mapping {
 export function isMappingValid(mapping: Mapping): boolean {
   return typeof mapping.text === "string" && mapping.text.length > 0;
 }
+
+/**
+ * Source headers the reader has made no decision about yet: neither mapped to a
+ * canonical field nor explicitly marked "never import" by a remembered alias.
+ *
+ * A multi-file import only stops to ask about files that have some of these —
+ * a file whose every column is either mapped or deliberately ignored needs no
+ * approval, so the reader is not asked to re-confirm what is already settled.
+ */
+export function unassignedHeaders(
+  headers: string[],
+  mapping: Mapping,
+  ignoredHeaders: readonly string[] = [],
+): string[] {
+  const decided = new Set<string>();
+  for (const field of CANONICAL_FIELDS) {
+    const header = mapping[field];
+    if (header) decided.add(key(header));
+  }
+  for (const header of ignoredHeaders) decided.add(key(header));
+
+  return headers.filter((header) => !decided.has(key(header)));
+}
