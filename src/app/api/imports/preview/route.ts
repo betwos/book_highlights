@@ -42,7 +42,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
-  const resolved = await resolveMapping(await currentUserId(), parsed.headers, parsed.rows);
+  const userId = await currentUserId();
+
+  const resolved = await resolveMapping(userId, parsed.headers, parsed.rows);
   const { mapping } = resolved;
   if (!isMappingValid(mapping)) {
     return NextResponse.json(
@@ -56,19 +58,21 @@ export async function POST(req: Request) {
   }
 
   const existingBooks = await prisma.book.findMany({
-    where: { userId: await currentUserId() },
+    where: { userId },
     select: { id: true, title: true, author: true },
   });
 
   const groups = groupRows(parsed.rows, mapping, existingBooks);
 
-  // Housekeeping: stale staged rows are dead weight (SPEC 7).
+  // Housekeeping: stale staged rows are dead weight (SPEC 7). Scoped to this
+  // reader — one account's upload is no reason to sweep another's batches.
   await prisma.importBatch.deleteMany({
-    where: { status: "pending", createdAt: { lt: new Date(Date.now() - DAY_MS) } },
+    where: { userId, status: "pending", createdAt: { lt: new Date(Date.now() - DAY_MS) } },
   });
 
   const batch = await prisma.importBatch.create({
     data: {
+      userId,
       filename: file.name,
       rowCount: parsed.rows.length,
       mapping: mapping as unknown as Prisma.InputJsonValue,

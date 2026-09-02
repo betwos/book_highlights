@@ -57,14 +57,18 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     return NextResponse.json({ error: "A highlight text column is required." }, { status: 400 });
   }
 
-  const batch = await prisma.importBatch.findUnique({ where: { id } });
+  const userId = await currentUserId();
+
+  // Scoped by owner, not just by id: a batch id is unguessable but secrecy is
+  // not authorization, and the staged rows hold another reader's highlight text.
+  // Someone else's batch reads as "not found" — no signal that the id was real.
+  const batch = await prisma.importBatch.findFirst({ where: { id, userId } });
   if (!batch) return NextResponse.json({ error: "Import not found." }, { status: 404 });
   if (batch.status !== "pending") {
     return NextResponse.json({ error: "This import was already committed." }, { status: 409 });
   }
 
   const stagedRows = (batch.stagedRows ?? []) as unknown as CsvRow[];
-  const userId = await currentUserId();
 
   // Bucket the staged rows by group key once.
   const byKey = new Map<string, CsvRow[]>();

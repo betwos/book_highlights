@@ -138,31 +138,17 @@ not deleted. `scripts/claim-library.ts <email>` hands them to a confirmed accoun
 
 ## 7. Open work, most important first
 
-### 7.1 SECURITY — import commit accepts any batch id
+### 7.1 ~~SECURITY — import commit accepts any batch id~~ — FIXED
 
-**`src/app/api/imports/[id]/commit/route.ts:60`**
+`ImportBatch` now carries `userId` (migration `20260902000000_import_batch_owner`,
+defaulting to `'local'` like `Book` and `ColumnAlias`). The preview route stamps the
+owner on the batch; the commit route looks it up with
+`findFirst({ where: { id, userId } })`, so another account's batch reads as 404. The
+stale-batch sweep in the preview route is scoped to the caller too, instead of
+deleting everyone's expired pending batches.
 
-```ts
-const batch = await prisma.importBatch.findUnique({ where: { id } });
-```
-
-No ownership check, because **`ImportBatch` has no `userId` column**
-(`prisma/schema.prisma:56-67`). It never needed one when there was one user.
-
-**Attack:** user A uploads a CSV; preview stages the parsed rows in
-`ImportBatch.stagedRows` and returns the batch id. User B, signed in and knowing that
-id, POSTs to commit — the route accepts it and imports **A's highlight text into books
-B owns**. Disclosure only; B cannot write into A's library, because the merge path
-does check `book.findFirst({ where: { id, userId } })`. Requires a `pending` batch
-(under 24h) and knowledge of its cuid — unguessable, but secrecy is not authorization.
-
-**Fix:** add `userId` to `ImportBatch`, set it in the preview route, and scope the
-commit lookup with `findFirst({ where: { id, userId: await currentUserId() } })`.
-Schema field + migration + two lines. While there, note that the stale-batch cleanup
-at `src/app/api/imports/preview/route.ts:66` deletes *everyone's* expired pending
-batches, not just the caller's.
-
-**This matters before the app is publicly reachable, because registration is open.**
+The migration is written but **not applied** — apply it with `prisma migrate deploy`
+against the direct/unpooled `DATABASE_URL` before deploying.
 
 ### 7.2 Open registration bills one shared key
 
