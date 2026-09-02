@@ -11,7 +11,9 @@
  * Idempotent: running it twice moves nothing the second time.
  */
 import { PrismaClient } from "@prisma/client";
-import { LOCAL_USER_ID } from "../src/lib/user";
+// Not from src/lib/user: that imports Auth.js and next/server, which a plain
+// tsx script has no reason to load and cannot resolve without the app running.
+import { LOCAL_USER_ID } from "../src/lib/auth-constants";
 import { normalizeEmail } from "../src/lib/accounts";
 
 const prisma = new PrismaClient();

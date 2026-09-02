@@ -1,12 +1,10 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { LOCAL_USER_ID } from "./auth-constants";
 
-/**
- * The owner id of rows created before accounts existed (SPEC 4.10's single-user
- * default). Nobody signs in as it — it survives only so the seed and
- * scripts/claim-library.ts can still address that data.
- */
-export const LOCAL_USER_ID = "local";
+// Re-exported for callers already importing it from here. Scripts should take it
+// from auth-constants directly — this module pulls in Auth.js.
+export { LOCAL_USER_ID };
 
 /**
  * The signed-in reader's id. Every query scopes by this, and that scoping is the

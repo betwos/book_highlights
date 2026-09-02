@@ -5,7 +5,8 @@ import { parseCsv } from "../src/lib/csv/parse";
 import { detectMapping } from "../src/lib/csv/detect";
 import { groupRows } from "../src/lib/csv/group";
 import { rowsToHighlights } from "../src/lib/csv/rows";
-import { LOCAL_USER_ID } from "../src/lib/user";
+// Not from src/lib/user, which imports Auth.js — see scripts/claim-library.ts.
+import { LOCAL_USER_ID } from "../src/lib/auth-constants";
 
 const prisma = new PrismaClient();
 
