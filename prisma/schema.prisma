@@ -107,6 +107,44 @@ model ColumnAlias {
   @@unique([userId, headerKey])
 }
 
+/// A registered reader. SPEC 15 put auth and multi-user out of scope for v1;
+/// both are in scope now, and `userId` on the other models — which has always
+/// been there (SPEC 4.10) — is what makes each library private.
+///
+/// Deliberately not a foreign key from Book/Highlight/ColumnAlias: rows created
+/// before this model existed carry userId "local" and would violate it. See
+/// scripts/claim-library.ts for moving them to a real account.
+model User {
+  id            String    @id @default(cuid())
+  /// Stored lowercased and trimmed; the unique index is what makes it the login.
+  email         String    @unique
+  /// bcrypt. Never the password itself, and never returned to the client.
+  passwordHash  String
+  /// Null until a confirmation code is consumed. Sign-in is refused while null.
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  codes VerificationCode[]
+}
+
+/// A one-time email confirmation code. The code itself is never stored — only a
+/// sha256 of it — so a leaked database does not hand over live codes.
+model VerificationCode {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash    String
+  expiresAt   DateTime
+  /// Set when redeemed. A consumed code is never accepted again.
+  consumedAt  DateTime?
+  /// Wrong guesses against this code; too many and it is dead.
+  attempts    Int       @default(0)
+  createdAt   DateTime  @default(now())
+
+  @@index([userId, createdAt])
+}
+
 enum ImportStatus {
   pending
   committed

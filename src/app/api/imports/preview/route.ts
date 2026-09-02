@@ -42,7 +42,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
-  const resolved = await resolveMapping(currentUserId(), parsed.headers, parsed.rows);
+  const resolved = await resolveMapping(await currentUserId(), parsed.headers, parsed.rows);
   const { mapping } = resolved;
   if (!isMappingValid(mapping)) {
     return NextResponse.json(
@@ -56,7 +56,7 @@ export async function POST(req: Request) {
   }
 
   const existingBooks = await prisma.book.findMany({
-    where: { userId: currentUserId() },
+    where: { userId: await currentUserId() },
     select: { id: true, title: true, author: true },
   });
 

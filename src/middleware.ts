@@ -1,14 +1,16 @@
-export { auth as middleware } from "@/auth";
+import NextAuth from "next-auth";
+import { authConfig } from "@/auth.config";
 
 /**
- * The primary access gate: everything is protected except the auth endpoints
- * themselves (which must stay reachable to sign in), Next's static assets, and
- * locally-stored cover images.
+ * The access gate. Uses the edge-safe half of the config only — pulling in
+ * src/auth.ts would drag bcrypt and Prisma into the edge bundle.
  *
- * Middleware is not the only check — the route handlers and server actions that
- * mutate data or spend model credits call `unauthorized()` / `requireSession()`
- * as well, so a middleware bypass does not become a write.
+ * Not the only check: the route handlers and server actions that read or write
+ * a library resolve the session again through `currentUserId()`, so a bypass
+ * here cannot reach another account's data.
  */
+export const { auth: middleware } = NextAuth(authConfig);
+
 export const config = {
   matcher: ["/((?!api/auth|_next/static|_next/image|favicon.ico|uploads).*)"],
 };

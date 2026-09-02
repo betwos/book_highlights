@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export default async function LibraryPage() {
   // Reads happen in the Server Component, calling Prisma directly (SPEC 4.11).
   const books = await prisma.book.findMany({
-    where: { userId: currentUserId() },
+    where: { userId: await currentUserId() },
     orderBy: { updatedAt: "desc" },
     include: {
       highlights: { select: { contentHash: true } },

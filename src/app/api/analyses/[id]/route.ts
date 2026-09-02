@@ -36,7 +36,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const { id } = await ctx.params;
 
   const analysis = await prisma.analysis.findFirst({
-    where: { id, book: { userId: currentUserId() } },
+    where: { id, book: { userId: await currentUserId() } },
     select: FIELDS,
   });
 

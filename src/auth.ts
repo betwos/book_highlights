@@ -1,49 +1,47 @@
 import NextAuth from "next-auth";
-import GitHub from "next-auth/providers/github";
+import Credentials from "next-auth/providers/credentials";
+import bcrypt from "bcryptjs";
+import { prisma } from "@/lib/db";
+import { authConfig } from "@/auth.config";
+import { normalizeEmail } from "@/lib/accounts";
 
 /**
- * Single-user access control.
+ * Email-and-password accounts, each with its own private library.
  *
- * SPEC §15 puts authentication out of scope for v1, and this does not walk that
- * back: the data model is still single-user and every query stays scoped by
- * `currentUserId()`, which still returns LOCAL_USER_ID. This exists only because
- * a public deployment lets anyone spend the project's model credits. It answers
- * "is this the owner?" — never "which user is this?".
- *
- * Sessions are JWT (no database adapter), which keeps the middleware gate
- * runnable on the edge.
+ * An address must be confirmed before it can sign in: `authorize` refuses while
+ * `emailVerified` is null. It returns null rather than throwing so the caller —
+ * the sign-in action — can look up why and send an unconfirmed account to
+ * /verify instead of showing "wrong password".
  */
-
-/** The one account allowed in. Compared case-insensitively. */
-const ownerEmail = () => process.env.OWNER_EMAIL?.trim().toLowerCase() || null;
-
-/**
- * Enforced in production only, so `npm run dev` needs no OAuth app and the unit
- * suite needs no session. Note that a local production build (`npm run build &&
- * npm start`) does enforce it, and will need the AUTH_* variables set.
- */
-export const authEnforced = () => process.env.NODE_ENV === "production";
-
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  providers: [GitHub],
-  callbacks: {
-    /**
-     * Fails closed. With OWNER_EMAIL unset nobody gets in — an accidentally
-     * unconfigured deployment is locked, not wide open.
-     */
-    signIn({ profile }) {
-      const owner = ownerEmail();
-      if (!owner) return false;
+  ...authConfig,
+  session: { strategy: "jwt" },
+  providers: [
+    Credentials({
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
 
-      const email = profile?.email?.trim().toLowerCase();
-      return Boolean(email) && email === owner;
-    },
+      async authorize(credentials) {
+        const email = normalizeEmail(String(credentials?.email ?? ""));
+        const password = String(credentials?.password ?? "");
+        if (!email || !password) return null;
 
-    /** Consulted by the middleware export in src/middleware.ts. */
-    authorized({ auth: session }) {
-      if (!authEnforced()) return true;
+        const user = await prisma.user.findUnique({
+          where: { email },
+          select: { id: true, email: true, passwordHash: true, emailVerified: true },
+        });
+        if (!user) return null;
 
-      return Boolean(session?.user);
-    },
-  },
+        const ok = await bcrypt.compare(password, user.passwordHash);
+        if (!ok) return null;
+
+        // Correct password, unconfirmed address: still not a session.
+        if (!user.emailVerified) return null;
+
+        return { id: user.id, email: user.email };
+      },
+    }),
+  ],
 });

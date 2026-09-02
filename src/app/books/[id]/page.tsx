@@ -25,7 +25,7 @@ export default async function BookPage({
   const { tab } = await searchParams;
 
   const book = await prisma.book.findFirst({
-    where: { id, userId: currentUserId() },
+    where: { id, userId: await currentUserId() },
     include: {
       highlights: { orderBy: { orderIndex: "asc" } },
       analyses: { orderBy: { createdAt: "desc" }, take: 1 },

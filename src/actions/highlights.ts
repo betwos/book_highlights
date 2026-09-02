@@ -13,7 +13,7 @@ async function ownedHighlight(id: string) {
   await requireSession();
 
   return prisma.highlight.findFirst({
-    where: { id, book: { userId: currentUserId() } },
+    where: { id, book: { userId: await currentUserId() } },
     select: { id: true, bookId: true },
   });
 }

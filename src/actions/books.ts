@@ -31,7 +31,7 @@ export async function createBook(_prev: ActionState, formData: FormData): Promis
   }
 
   const book = await prisma.book.create({
-    data: { ...parsed.data, userId: currentUserId() },
+    data: { ...parsed.data, userId: await currentUserId() },
     select: { id: true },
   });
 
@@ -52,7 +52,7 @@ export async function updateBook(
   }
 
   const existing = await prisma.book.findFirst({
-    where: { id, userId: currentUserId() },
+    where: { id, userId: await currentUserId() },
     select: { id: true },
   });
   if (!existing) return { error: "Book not found." };
@@ -68,7 +68,7 @@ export async function deleteBook(id: string): Promise<void> {
   await requireSession();
 
   const book = await prisma.book.findFirst({
-    where: { id, userId: currentUserId() },
+    where: { id, userId: await currentUserId() },
     select: { id: true, coverUrl: true },
   });
   if (!book) return;

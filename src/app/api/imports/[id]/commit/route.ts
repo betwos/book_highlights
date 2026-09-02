@@ -64,7 +64,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   }
 
   const stagedRows = (batch.stagedRows ?? []) as unknown as CsvRow[];
-  const userId = currentUserId();
+  const userId = await currentUserId();
 
   // Bucket the staged rows by group key once.
   const byKey = new Map<string, CsvRow[]>();

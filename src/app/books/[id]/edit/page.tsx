@@ -9,7 +9,7 @@ import { DeleteBookDialog } from "@/components/delete-book-dialog";
 export default async function EditBookPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  const book = await prisma.book.findFirst({ where: { id, userId: currentUserId() } });
+  const book = await prisma.book.findFirst({ where: { id, userId: await currentUserId() } });
   if (!book) notFound();
 
   const action = updateBook.bind(null, book.id);

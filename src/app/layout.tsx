@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { auth } from "@/auth";
+import { signOutAction } from "@/actions/auth";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -7,7 +9,12 @@ export const metadata: Metadata = {
   description: "Personalized takeaways from the passages you saved.",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Drives the header only. Every query is scoped independently by
+  // `currentUserId()`, so this is presentation, not access control.
+  const session = await auth();
+  const email = session?.user?.email ?? null;
+
   return (
     <html lang="en">
       <body>
@@ -16,14 +23,24 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/" className="text-lg font-medium tracking-tight">
               Book Highlights
             </Link>
-            <nav className="flex items-center gap-4 text-sm text-[var(--muted-foreground)]">
-              <Link href="/import" className="hover:text-[var(--foreground)]">
-                Import
-              </Link>
-              <Link href="/books/new" className="hover:text-[var(--foreground)]">
-                Add a book
-              </Link>
-            </nav>
+            {email ? (
+              <nav className="flex items-center gap-4 text-sm text-[var(--muted-foreground)]">
+                <Link href="/import" className="hover:text-[var(--foreground)]">
+                  Import
+                </Link>
+                <Link href="/books/new" className="hover:text-[var(--foreground)]">
+                  Add a book
+                </Link>
+                <span className="hidden sm:inline" title={email}>
+                  {email}
+                </span>
+                <form action={signOutAction}>
+                  <button type="submit" className="hover:text-[var(--foreground)]">
+                    Sign out
+                  </button>
+                </form>
+              </nav>
+            ) : null}
           </header>
           <main className="flex-1 pb-16">{children}</main>
           <footer className="border-t border-[var(--border)] py-6 text-xs text-[var(--muted-foreground)]">

@@ -37,9 +37,33 @@ and the running app see the same values. Both files are gitignored.
 | `ANTHROPIC_MODEL` | Optional, defaults to `claude-opus-5`. Pricing follows the model. |
 | `GEMINI_MODEL` | Optional, defaults to `gemini-3.5-flash`. Pricing follows the model. |
 | `MAP_REDUCE_TOKEN_THRESHOLD` | Optional, defaults to `120000`. Lower it to exercise map-reduce. |
+| `AUTH_SECRET` | Session signing key — `npx auth secret`. Required everywhere, including locally. |
+| `RESEND_API_KEY` | Optional locally: with it unset, confirmation codes are printed to the server log instead of emailed. |
+| `EMAIL_FROM` | Sender for confirmation emails. Needs a domain verified with Resend. |
+| `AUTH_URL` | Production only — the deployed URL. |
 
-Production also needs `AUTH_SECRET`, `AUTH_GITHUB_ID`, `AUTH_GITHUB_SECRET`, `AUTH_URL`, and
-`OWNER_EMAIL` — see [Deploying](#deploying). Local development needs none of them.
+## Accounts
+
+Anyone can register with an email and a password, and each account gets its own
+library: books, highlights, and remembered column mappings are scoped by `userId`
+(SPEC 4.10 put that column there from day one for exactly this).
+
+An address must be confirmed before it can sign in. Registering issues a
+single-use six-digit code that expires in ten minutes; only a sha256 of it is
+stored, so the database never holds a live code. Five wrong guesses kill it, and
+a new one can be requested once a minute.
+
+Locally you do not need a mail vendor. With `RESEND_API_KEY` unset the code is
+written to the terminal running `npm run dev` — sign up, copy it from there, and
+carry on.
+
+Data created before accounts existed belongs to `userId` `"local"` and is
+invisible to every account. It is not deleted; hand it to a registered address
+with `npx tsx scripts/claim-library.ts you@example.com`.
+
+Note that registration is open by design. Every account's analysis runs are billed
+to the same provider key, so if the deployment is reachable publicly, that key is
+exposed to whoever signs up.
 
 ## Scripts
 
@@ -51,6 +75,7 @@ Production also needs `AUTH_SECRET`, `AUTH_GITHUB_ID`, `AUTH_GITHUB_SECRET`, `AU
 | `npm run lint` | `tsc --noEmit`. |
 | `npm run seed` | Imports the fixture CSV into the database. |
 | `npx tsx scripts/try-analysis.ts` | Runs the AI layer against the fixture, no database, no UI. Costs real tokens. |
+| `npx tsx scripts/claim-library.ts <email>` | Moves pre-account data (`userId` `"local"`) to a registered account. |
 
 ## Deploying
 
@@ -58,16 +83,18 @@ Vercel, with Postgres on Neon or Supabase and covers in Vercel Blob.
 
 **1. Provision.** Create a *separate* production database — dev seed data should not ship. Note both
 its pooled and direct (unpooled) connection strings. Import the repo as a Vercel project, add a Blob
-store (which issues `BLOB_READ_WRITE_TOKEN`), and register a GitHub OAuth app whose callback URL is
-`https://<your-domain>/api/auth/callback/github`.
+store (which issues `BLOB_READ_WRITE_TOKEN`), and create a Resend API key with a verified sender
+domain.
 
-**2. Configure.** Set every variable from the table above in the Vercel project, plus the `AUTH_*`
-values and `OWNER_EMAIL`. Two are easy to get wrong:
+**2. Configure.** Set every variable from the table above in the Vercel project. Three are easy to
+get wrong:
 
 - `STORAGE_DRIVER` **must** be `blob`. The `local` driver writes to `public/uploads/`, and a
   serverless filesystem is ephemeral and read-only — covers would vanish or fail to save.
-- `OWNER_EMAIL` is the only thing keeping the app single-user. It is compared against the GitHub
-  account's email; leaving it unset locks *everyone* out, which is the intended failure direction.
+- `RESEND_API_KEY` **must** be set. Without it the app falls back to logging confirmation codes to
+  the server console, which in production means nobody can ever complete a signup.
+- `AUTH_SECRET` must be a real generated secret (`npx auth secret`), and stable — changing it signs
+  everyone out.
 
 **3. Migrate.** `npm run build` runs `prisma generate`, not `migrate` — schema changes should not
 fire on every deploy. Apply them once, by hand, pointing `DATABASE_URL` at the **direct** string,
@@ -84,9 +111,12 @@ that needs Fluid Compute (the default for new projects); classic serverless caps
 map-reduce is being cut short, either raise the limit or lower `MAP_REDUCE_TOKEN_THRESHOLD` so each
 call does less work.
 
-Authentication is enforced only when `NODE_ENV=production`, so `npm run dev` stays frictionless. A
-local production build (`npm run build && npm start`) *does* enforce it and needs the `AUTH_*`
-variables set.
+**5. Claim the seed data, if you want it.** Books created before accounts existed belong to `userId`
+`"local"` and no account can see them. Register, confirm the address, then run
+`npx tsx scripts/claim-library.ts you@example.com` against the production database.
+
+Registration is open to anyone who can receive email. Analysis runs are billed to the single
+provider key configured above, so a publicly reachable deployment is a publicly usable API key.
 
 ## How it works
 
@@ -130,7 +160,8 @@ prisma/          schema, migrations, seed
 fixtures/        readwise-sample.csv — 2 books, 40 highlights
                  quote-export-sample.csv — non-Readwise headers, exercises column matching
 scripts/         try-analysis.ts — exercise the AI layer alone
-src/auth.ts      Auth.js config — single-account allowlist, production only
+src/auth.config.ts  edge-safe auth config (what middleware imports)
+src/auth.ts      Auth.js + the credentials provider (bcrypt, Prisma)
 src/middleware.ts  the access gate
 src/app/         routes and route handlers
 src/actions/     Server Actions (books, highlights)

@@ -17,7 +17,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const { id } = await ctx.params;
 
   const book = await prisma.book.findFirst({
-    where: { id, userId: currentUserId() },
+    where: { id, userId: await currentUserId() },
     select: { id: true, coverUrl: true },
   });
   if (!book) return NextResponse.json({ error: "Book not found." }, { status: 404 });
