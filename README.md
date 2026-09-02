@@ -33,9 +33,13 @@ and the running app see the same values. Both files are gitignored.
 | `ANTHROPIC_API_KEY` | Used for analysis generation only. |
 | `STORAGE_DRIVER` | `local` (writes to `public/uploads/`, gitignored) or `blob`. |
 | `BLOB_READ_WRITE_TOKEN` | Only when `STORAGE_DRIVER=blob`. |
-| `AI_PROVIDER` | Optional, defaults to `anthropic` — the only implementation today. |
+| `AI_PROVIDER` | Optional, defaults to `anthropic`. `anthropic` or `gemini`. |
 | `ANTHROPIC_MODEL` | Optional, defaults to `claude-opus-5`. Pricing follows the model. |
+| `GEMINI_MODEL` | Optional, defaults to `gemini-3.5-flash`. Pricing follows the model. |
 | `MAP_REDUCE_TOKEN_THRESHOLD` | Optional, defaults to `120000`. Lower it to exercise map-reduce. |
+
+Production also needs `AUTH_SECRET`, `AUTH_GITHUB_ID`, `AUTH_GITHUB_SECRET`, `AUTH_URL`, and
+`OWNER_EMAIL` — see [Deploying](#deploying). Local development needs none of them.
 
 ## Scripts
 
@@ -47,6 +51,42 @@ and the running app see the same values. Both files are gitignored.
 | `npm run lint` | `tsc --noEmit`. |
 | `npm run seed` | Imports the fixture CSV into the database. |
 | `npx tsx scripts/try-analysis.ts` | Runs the AI layer against the fixture, no database, no UI. Costs real tokens. |
+
+## Deploying
+
+Vercel, with Postgres on Neon or Supabase and covers in Vercel Blob.
+
+**1. Provision.** Create a *separate* production database — dev seed data should not ship. Note both
+its pooled and direct (unpooled) connection strings. Import the repo as a Vercel project, add a Blob
+store (which issues `BLOB_READ_WRITE_TOKEN`), and register a GitHub OAuth app whose callback URL is
+`https://<your-domain>/api/auth/callback/github`.
+
+**2. Configure.** Set every variable from the table above in the Vercel project, plus the `AUTH_*`
+values and `OWNER_EMAIL`. Two are easy to get wrong:
+
+- `STORAGE_DRIVER` **must** be `blob`. The `local` driver writes to `public/uploads/`, and a
+  serverless filesystem is ephemeral and read-only — covers would vanish or fail to save.
+- `OWNER_EMAIL` is the only thing keeping the app single-user. It is compared against the GitHub
+  account's email; leaving it unset locks *everyone* out, which is the intended failure direction.
+
+**3. Migrate.** `npm run build` runs `prisma generate`, not `migrate` — schema changes should not
+fire on every deploy. Apply them once, by hand, pointing `DATABASE_URL` at the **direct** string,
+because migrations cannot run through a transaction-mode pooler:
+
+```bash
+DATABASE_URL="<direct-unpooled-url>" npx prisma migrate deploy
+```
+
+Use `migrate deploy`, never `migrate dev` — the latter can reset data.
+
+**4. Check the function limit.** The analysis route declares `maxDuration = 300`. On Vercel Hobby
+that needs Fluid Compute (the default for new projects); classic serverless caps at 60s. If a long
+map-reduce is being cut short, either raise the limit or lower `MAP_REDUCE_TOKEN_THRESHOLD` so each
+call does less work.
+
+Authentication is enforced only when `NODE_ENV=production`, so `npm run dev` stays frictionless. A
+local production build (`npm run build && npm start`) *does* enforce it and needs the `AUTH_*`
+variables set.
 
 ## How it works
 
@@ -90,6 +130,8 @@ prisma/          schema, migrations, seed
 fixtures/        readwise-sample.csv — 2 books, 40 highlights
                  quote-export-sample.csv — non-Readwise headers, exercises column matching
 scripts/         try-analysis.ts — exercise the AI layer alone
+src/auth.ts      Auth.js config — single-account allowlist, production only
+src/middleware.ts  the access gate
 src/app/         routes and route handlers
 src/actions/     Server Actions (books, highlights)
 src/components/  UI

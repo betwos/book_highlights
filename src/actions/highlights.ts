@@ -2,13 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { currentUserId } from "@/lib/user";
+import { currentUserId, requireSession } from "@/lib/user";
 import { contentHash } from "@/lib/hash";
 import { HighlightFormSchema } from "@/lib/schemas/book";
 
 export type HighlightActionState = { error?: string; ok?: boolean };
 
+/** Both exported actions go through here, so one check covers both. */
 async function ownedHighlight(id: string) {
+  await requireSession();
+
   return prisma.highlight.findFirst({
     where: { id, book: { userId: currentUserId() } },
     select: { id: true, bookId: true },

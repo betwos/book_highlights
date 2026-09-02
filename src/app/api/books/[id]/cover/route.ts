@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import sharp from "sharp";
 import { prisma } from "@/lib/db";
-import { currentUserId } from "@/lib/user";
+import { currentUserId, unauthorized } from "@/lib/user";
 import { saveImage, deleteImage } from "@/lib/storage";
 import { revalidatePath } from "next/cache";
 
@@ -11,6 +11,9 @@ const MAX_BYTES = 5 * 1024 * 1024;
 const ACCEPTED = ["image/jpeg", "image/png", "image/webp"];
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const denied = await unauthorized();
+  if (denied) return denied;
+
   const { id } = await ctx.params;
 
   const book = await prisma.book.findFirst({

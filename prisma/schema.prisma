@@ -4,6 +4,10 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  // Pooled connection string. Migrations cannot run through a transaction-mode
+  // pooler, so run them with DATABASE_URL overridden to the direct (unpooled)
+  // string instead — see "Deploying" in README.md. Kept as a single variable so
+  // local development, where the two are the same, needs no extra config.
   url      = env("DATABASE_URL")
 }
 

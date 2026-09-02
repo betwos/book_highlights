@@ -1,12 +1,15 @@
 import { after, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { currentUserId } from "@/lib/user";
+import { currentUserId, unauthorized } from "@/lib/user";
 import { currentHighlightSetHash, currentModel, PROMPT_VERSION } from "@/lib/analysis";
 import { runAnalysis } from "@/lib/ai/run";
 
 export const maxDuration = 300;
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const denied = await unauthorized();
+  if (denied) return denied;
+
   const { id } = await ctx.params;
   const force = new URL(req.url).searchParams.get("force") === "1";
 

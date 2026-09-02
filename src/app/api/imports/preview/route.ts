@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { currentUserId } from "@/lib/user";
+import { currentUserId, unauthorized } from "@/lib/user";
 import { parseCsv, assertSize, CsvError, MAX_CSV_BYTES } from "@/lib/csv/parse";
 import { isMappingValid } from "@/lib/csv/detect";
 import { resolveMapping } from "@/lib/csv/resolve";
@@ -12,6 +12,9 @@ export const maxDuration = 60;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export async function POST(req: Request) {
+  const denied = await unauthorized();
+  if (denied) return denied;
+
   let form: FormData;
   try {
     form = await req.formData();

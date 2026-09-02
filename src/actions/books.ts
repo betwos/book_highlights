@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { currentUserId } from "@/lib/user";
+import { currentUserId, requireSession } from "@/lib/user";
 import { deleteImage } from "@/lib/storage";
 import { BookFormSchema } from "@/lib/schemas/book";
 
@@ -23,6 +23,8 @@ function readForm(formData: FormData) {
 }
 
 export async function createBook(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireSession();
+
   const parsed = readForm(formData);
   if (!parsed.success) {
     return { error: "Check the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors };
@@ -42,6 +44,8 @@ export async function updateBook(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  await requireSession();
+
   const parsed = readForm(formData);
   if (!parsed.success) {
     return { error: "Check the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors };
@@ -61,6 +65,8 @@ export async function updateBook(
 }
 
 export async function deleteBook(id: string): Promise<void> {
+  await requireSession();
+
   const book = await prisma.book.findFirst({
     where: { id, userId: currentUserId() },
     select: { id: true, coverUrl: true },

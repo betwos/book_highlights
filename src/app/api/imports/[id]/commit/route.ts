@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { currentUserId } from "@/lib/user";
+import { currentUserId, unauthorized } from "@/lib/user";
 import { CANONICAL_FIELDS, emptyMapping, isMappingValid, type Mapping } from "@/lib/csv/detect";
 import { aliasesToRemember } from "@/lib/csv/aliases";
 import { rememberAliases } from "@/lib/csv/alias-store";
@@ -42,6 +42,9 @@ function coerceMapping(raw: Record<string, string | null>): Mapping {
 }
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const denied = await unauthorized();
+  if (denied) return denied;
+
   const { id } = await ctx.params;
 
   const parsedBody = BodySchema.safeParse(await req.json().catch(() => null));
