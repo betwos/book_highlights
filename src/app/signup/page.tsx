@@ -9,7 +9,6 @@ export default function SignUpPage() {
         <h1 className="text-2xl font-medium tracking-tight">Create an account</h1>
         <p className="text-sm text-[var(--muted-foreground)]">
           Your library is your own — the books and highlights you import are visible only to you.
-          We&rsquo;ll email a code to confirm the address first.
         </p>
       </div>
 

@@ -126,31 +126,12 @@ model User {
   email         String    @unique
   /// bcrypt. Never the password itself, and never returned to the client.
   passwordHash  String
-  /// Null until a confirmation code is consumed. Sign-in is refused while null.
-  emailVerified DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
-
-  codes VerificationCode[]
 }
 
 /// A one-time email confirmation code. The code itself is never stored — only a
 /// sha256 of it — so a leaked database does not hand over live codes.
-model VerificationCode {
-  id          String    @id @default(cuid())
-  userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  codeHash    String
-  expiresAt   DateTime
-  /// Set when redeemed. A consumed code is never accepted again.
-  consumedAt  DateTime?
-  /// Wrong guesses against this code; too many and it is dead.
-  attempts    Int       @default(0)
-  createdAt   DateTime  @default(now())
-
-  @@index([userId, createdAt])
-}
-
 enum ImportStatus {
   pending
   committed

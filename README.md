@@ -39,8 +39,6 @@ and the running app see the same values. Both files are gitignored.
 | `GEMINI_MODEL` | Optional, defaults to `gemini-3.5-flash`. Pricing follows the model. |
 | `MAP_REDUCE_TOKEN_THRESHOLD` | Optional, defaults to `120000`. Lower it to exercise map-reduce. |
 | `AUTH_SECRET` | Session signing key — `npx auth secret`. Required everywhere, including locally. |
-| `RESEND_API_KEY` | Optional locally: with it unset, confirmation codes are printed to the server log instead of emailed. |
-| `EMAIL_FROM` | Sender for confirmation emails. Needs a domain verified with Resend. |
 | `AUTH_URL` | Production only — the deployed URL. |
 
 ## Accounts
@@ -49,14 +47,11 @@ Anyone can register with an email and a password, and each account gets its own
 library: books, highlights, and remembered column mappings are scoped by `userId`
 (SPEC 4.10 put that column there from day one for exactly this).
 
-An address must be confirmed before it can sign in. Registering issues a
-single-use six-digit code that expires in ten minutes; only a sha256 of it is
-stored, so the database never holds a live code. Five wrong guesses kill it, and
-a new one can be requested once a minute.
-
-Locally you do not need a mail vendor. With `RESEND_API_KEY` unset the code is
-written to the terminal running `npm run dev` — sign up, copy it from there, and
-carry on.
+Registration is one step: the account exists and is signed in immediately.
+Addresses are **not** confirmed — nothing checks that whoever registers can
+receive mail at the address they gave, so treat a stored address as a login
+rather than as a way to reach someone. The app sends no email at all and needs
+no mail vendor, in development or in production.
 
 Data created before accounts existed belongs to `userId` `"local"` and is
 invisible to every account. It is not deleted; hand it to a registered address
@@ -82,8 +77,8 @@ exposed to whoever signs up.
 
 Vercel, with Postgres on Neon or Supabase and covers in Vercel Blob.
 
-**1. Provision.** Import the repo as a Vercel project, add a Blob store (which issues
-`BLOB_READ_WRITE_TOKEN`), and create a Resend API key with a verified sender domain.
+**1. Provision.** Import the repo as a Vercel project and add a Blob store (which issues
+`BLOB_READ_WRITE_TOKEN`).
 
 For the database, decide which case you are in. A *separate* production database is the default —
 dev seed data should not ship. But if the database you have been developing against already holds
@@ -92,13 +87,11 @@ across; see `HANDOFF.md` §7.1, which records that this is the situation here. T
 it is that `DATABASE_URL` becomes production: no `npm run seed`, no `prisma migrate dev` against it
 afterwards, ever. Either way, note both the pooled and direct (unpooled) connection strings.
 
-**2. Configure.** Set every variable from the table above in the Vercel project. Four are easy to
+**2. Configure.** Set every variable from the table above in the Vercel project. Three are easy to
 get wrong:
 
 - `STORAGE_DRIVER` **must** be `blob`. The `local` driver writes to `public/uploads/`, and a
   serverless filesystem is ephemeral and read-only — covers would vanish or fail to save.
-- `RESEND_API_KEY` **must** be set. Without it the app falls back to logging confirmation codes to
-  the server console, which in production means nobody can ever complete a signup.
 - `AUTH_SECRET` must be a real generated secret (`npx auth secret`), and stable — changing it signs
   everyone out.
 - The provider key must match `AI_PROVIDER`: `GEMINI_API_KEY` for `gemini`, `ANTHROPIC_API_KEY` for
@@ -122,13 +115,14 @@ map-reduce is being cut short, either raise the limit or lower `MAP_REDUCE_TOKEN
 call does less work.
 
 **5. Claim pre-account data, if there is any.** Books created before accounts existed belong to
-`userId` `"local"` and no account can see them. Register, confirm the address, then run
+`userId` `"local"` and no account can see them. Register, then run
 `npx tsx scripts/claim-library.ts you@example.com` against the production database. Skip this
 entirely when no such rows exist — on a promoted database whose books already belong to a real
 account, the script has nothing to move.
 
-Registration is open to anyone who can receive email. Analysis runs are billed to the single
-provider key configured above, so a publicly reachable deployment is a publicly usable API key.
+Registration is open to anyone who can reach the URL — with no address confirmation, not even a
+working mailbox is required. Analysis runs are billed to the single provider key configured above,
+so a publicly reachable deployment is a publicly usable API key.
 
 ## How it works
 

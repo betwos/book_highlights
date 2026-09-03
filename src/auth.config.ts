@@ -10,7 +10,7 @@ import type { NextAuthConfig } from "next-auth";
  */
 
 /** Reachable without a session. Everything else needs one. */
-const PUBLIC_PREFIXES = ["/signin", "/signup", "/verify"];
+const PUBLIC_PREFIXES = ["/signin", "/signup"];
 
 export const authConfig = {
   pages: { signIn: "/signin" },

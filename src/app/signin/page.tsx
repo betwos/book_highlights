@@ -2,13 +2,7 @@ import { SignInForm } from "@/components/auth-forms";
 
 export const metadata = { title: "Sign in" };
 
-export default async function SignInPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ verified?: string }>;
-}) {
-  const { verified } = await searchParams;
-
+export default function SignInPage() {
   return (
     <div className="mx-auto max-w-md space-y-6">
       <div>
@@ -18,7 +12,7 @@ export default async function SignInPage({
         </p>
       </div>
 
-      <SignInForm verified={verified === "1"} />
+      <SignInForm />
     </div>
   );
 }

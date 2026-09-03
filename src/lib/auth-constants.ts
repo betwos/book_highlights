@@ -2,12 +2,10 @@
  * Auth values that callers outside the server runtime need.
  *
  * **Nothing here may import anything.** Two kinds of caller depend on that:
- * client components, which cannot take `node:crypto` (verification.ts) or
- * bcrypt (accounts.ts) into the browser bundle; and standalone `tsx` scripts,
- * which would otherwise boot Auth.js and Next just to read a constant.
+ * client components, which cannot take bcrypt (accounts.ts) into the browser
+ * bundle; and standalone `tsx` scripts, which would otherwise boot Auth.js and
+ * Next just to read a constant.
  */
-
-export const CODE_LENGTH = 6;
 
 export const MIN_PASSWORD_LENGTH = 10;
 

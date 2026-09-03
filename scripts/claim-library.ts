@@ -28,17 +28,11 @@ async function main() {
 
   const user = await prisma.user.findUnique({
     where: { email },
-    select: { id: true, emailVerified: true },
+    select: { id: true },
   });
 
   if (!user) {
     console.error(`No account for ${email}. Sign up first, then run this again.`);
-    process.exitCode = 1;
-    return;
-  }
-
-  if (!user.emailVerified) {
-    console.error(`${email} has not confirmed their address yet.`);
     process.exitCode = 1;
     return;
   }

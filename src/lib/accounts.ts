@@ -17,9 +17,10 @@ export function normalizeEmail(raw: string): string {
 }
 
 /**
- * Deliberately loose. Real validation is the confirmation code — an address that
- * cannot receive mail never becomes an account, whatever its shape. This only
- * catches the obvious typo before we bother sending.
+ * Deliberately loose, and now the *only* check on an address: nothing confirms
+ * that the person registering can receive mail there. It catches the obvious
+ * typo, nothing more. Treat a stored address as a login, not as a proven way to
+ * reach someone.
  */
 export function isEmailShaped(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
