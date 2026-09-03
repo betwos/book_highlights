@@ -1,6 +1,6 @@
 # Book Highlights — codebase handoff
 
-Written for an AI agent picking this repo up cold. Current as of `main` @ `c63c7f6`.
+Written for an AI agent picking this repo up cold. Current as of `main` @ `4448596`.
 
 `SPEC.md` is the original v1 specification and still the best explanation of *why*
 the design is what it is. It is no longer a complete description of *what exists* —
@@ -113,6 +113,7 @@ cover route needs a `bookId` that does not exist until `createBook` runs.
 
 | Commit | What |
 |---|---|
+| `4448596` | Give staged imports an owner — closes the import-commit ownership hole. |
 | `c63c7f6` | Keep tsx scripts clear of the auth runtime. |
 | `8f3e46f` | Replace the single-account gate with email/password accounts. |
 | `3363254` | Gate the app behind a single-account sign-in; deploy prep. |
@@ -136,33 +137,52 @@ Prisma cannot go: `src/auth.config.ts` (edge-safe) vs `src/auth.ts` (full).
 Rows predating accounts carry `userId "local"` and are invisible to every account —
 not deleted. `scripts/claim-library.ts <email>` hands them to a confirmed account.
 
+### Import batch ownership (`4448596`)
+
+`ImportBatch` now carries `userId` (default `"local"`, index on
+`(userId, status, createdAt)`). This closed a real hole: the commit route matched a
+batch on **id alone**, so any signed-in account that knew a pending batch's cuid could
+import another account's staged highlight text into its own books. Preview now stamps
+the owner, commit looks the batch up with `findFirst({ where: { id, userId } })` — so
+someone else's batch reads as 404, not as importable — and the 24h stale-batch
+housekeeping is scoped to the caller instead of deleting everyone's expired batches.
+
+The migration is `20260902000000_import_batch_user`, and it is additive: `ADD COLUMN
+... DEFAULT 'local'` plus the index, no data rewritten.
+
 ## 7. Open work, most important first
 
-### 7.1 SECURITY — import commit accepts any batch id
+### 7.1 Deployment is prepared but not done
 
-**`src/app/api/imports/[id]/commit/route.ts:60`**
+`README.md` § Deploying has the full sequence. Nothing is provisioned on Vercel yet.
 
-```ts
-const batch = await prisma.importBatch.findUnique({ where: { id } });
-```
+**The database is the exception, and it is not what the README's step 1 assumes.** The
+Neon database in `.env` is no longer a scratch DB — it holds the owner's real library
+(one verified account, 19 books, 2362 highlights, 22 analyses, zero rows owned by
+`"local"`), and **all four migrations are already applied to it**. The intent is to
+promote that database to production rather than provision a second one, which makes
+README steps 3 and 5 no-ops here. Two consequences worth knowing before you touch it:
 
-No ownership check, because **`ImportBatch` has no `userId` column**
-(`prisma/schema.prisma:56-67`). It never needed one when there was one user.
+- Never run `npm run seed` or `prisma migrate dev` against `DATABASE_URL` as it stands.
+  `migrate dev` can reset data, and seeding injects fixture rows into a live library.
+- `scripts/claim-library.ts` has nothing to claim — there are no `"local"`-owned rows.
 
-**Attack:** user A uploads a CSV; preview stages the parsed rows in
-`ImportBatch.stagedRows` and returns the batch id. User B, signed in and knowing that
-id, POSTs to commit — the route accepts it and imports **A's highlight text into books
-B owns**. Disclosure only; B cannot write into A's library, because the merge path
-does check `book.findFirst({ where: { id, userId } })`. Requires a `pending` batch
-(under 24h) and knowledge of its cuid — unguessable, but secrecy is not authorization.
+Still genuinely outstanding: import the repo as a Vercel project, add a Blob store,
+create a Resend key with a verified sender domain, and set the environment. The
+variables that fail *silently* rather than loudly:
 
-**Fix:** add `userId` to `ImportBatch`, set it in the preview route, and scope the
-commit lookup with `findFirst({ where: { id, userId: await currentUserId() } })`.
-Schema field + migration + two lines. While there, note that the stale-batch cleanup
-at `src/app/api/imports/preview/route.ts:66` deletes *everyone's* expired pending
-batches, not just the caller's.
+- `STORAGE_DRIVER` must be `blob` — serverless filesystems are ephemeral and read-only,
+  so covers would vanish. (No covers exist yet, so nothing needs migrating into Blob.)
+- `RESEND_API_KEY` must be set, with `EMAIL_FROM` on the verified domain, or
+  confirmation codes only reach a server log nobody reads and no signup can complete.
+- The provider key must match `AI_PROVIDER`. This deployment runs `gemini`, so
+  `GEMINI_API_KEY` is the one that matters; an `ANTHROPIC_API_KEY` alone leaves every
+  analysis run broken.
+- `AUTH_SECRET` must be real (`npx auth secret`) and stable. A fresh one is safe —
+  passwords are bcrypt rows in the database — it only signs existing sessions out.
 
-**This matters before the app is publicly reachable, because registration is open.**
+Also confirm **Fluid Compute** is on: the analysis route declares `maxDuration = 300`
+and classic Hobby serverless caps at 60s.
 
 ### 7.2 Open registration bills one shared key
 
@@ -171,15 +191,7 @@ analysis runs bill to the single configured provider key, so a public deployment
 publicly usable API key. Mitigations if this becomes a problem: invite codes, a domain
 allowlist, per-user cost caps, or users supplying their own key.
 
-### 7.3 Deployment is prepared but not done
-
-`README.md` § Deploying has the full sequence. Nothing is provisioned yet. Watch:
-`STORAGE_DRIVER` must be `blob` (serverless filesystems are ephemeral and read-only);
-`RESEND_API_KEY` must be set or confirmation codes only reach a server log nobody
-reads, and no signup can complete; `maxDuration = 300` on the analysis route needs
-Fluid Compute on Vercel Hobby.
-
-### 7.4 Smaller items
+### 7.3 Smaller items
 
 - Column-matcher token usage is discarded — `matchColumns()` in
   `src/lib/ai/columns.ts` returns `usage`; `src/lib/csv/resolve.ts` destructures only
@@ -187,7 +199,8 @@ Fluid Compute on Vercel Hobby.
 - No cover uploader on `/books/new` (§5).
 - `SPEC.md` has no section covering §5's four divergences. The spec's own closing note
   says changes like these should get one.
-- No password reset flow exists.
+- No password reset flow exists. Now sharper than it reads: the only account is the
+  owner's, so a forgotten password means a manual database edit, not a support ticket.
 
 ## 8. Gotchas that will bite you
 

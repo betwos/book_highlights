@@ -30,7 +30,8 @@ and the running app see the same values. Both files are gitignored.
 | Variable | Notes |
 |---|---|
 | `DATABASE_URL` | Pooled Postgres connection string. |
-| `ANTHROPIC_API_KEY` | Used for analysis generation only. |
+| `ANTHROPIC_API_KEY` | Analysis generation, when `AI_PROVIDER=anthropic`. |
+| `GEMINI_API_KEY` | Analysis generation, when `AI_PROVIDER=gemini`. Set the key that matches the provider — the other one is ignored. |
 | `STORAGE_DRIVER` | `local` (writes to `public/uploads/`, gitignored) or `blob`. |
 | `BLOB_READ_WRITE_TOKEN` | Only when `STORAGE_DRIVER=blob`. |
 | `AI_PROVIDER` | Optional, defaults to `anthropic`. `anthropic` or `gemini`. |
@@ -81,12 +82,17 @@ exposed to whoever signs up.
 
 Vercel, with Postgres on Neon or Supabase and covers in Vercel Blob.
 
-**1. Provision.** Create a *separate* production database — dev seed data should not ship. Note both
-its pooled and direct (unpooled) connection strings. Import the repo as a Vercel project, add a Blob
-store (which issues `BLOB_READ_WRITE_TOKEN`), and create a Resend API key with a verified sender
-domain.
+**1. Provision.** Import the repo as a Vercel project, add a Blob store (which issues
+`BLOB_READ_WRITE_TOKEN`), and create a Resend API key with a verified sender domain.
 
-**2. Configure.** Set every variable from the table above in the Vercel project. Three are easy to
+For the database, decide which case you are in. A *separate* production database is the default —
+dev seed data should not ship. But if the database you have been developing against already holds
+data you intend to keep, promote **that one** rather than provisioning a second and migrating rows
+across; see `HANDOFF.md` §7.1, which records that this is the situation here. The cost of promoting
+it is that `DATABASE_URL` becomes production: no `npm run seed`, no `prisma migrate dev` against it
+afterwards, ever. Either way, note both the pooled and direct (unpooled) connection strings.
+
+**2. Configure.** Set every variable from the table above in the Vercel project. Four are easy to
 get wrong:
 
 - `STORAGE_DRIVER` **must** be `blob`. The `local` driver writes to `public/uploads/`, and a
@@ -95,25 +101,31 @@ get wrong:
   the server console, which in production means nobody can ever complete a signup.
 - `AUTH_SECRET` must be a real generated secret (`npx auth secret`), and stable — changing it signs
   everyone out.
+- The provider key must match `AI_PROVIDER`: `GEMINI_API_KEY` for `gemini`, `ANTHROPIC_API_KEY` for
+  `anthropic`. Setting only the other one fails at analysis time, not at boot.
 
 **3. Migrate.** `npm run build` runs `prisma generate`, not `migrate` — schema changes should not
 fire on every deploy. Apply them once, by hand, pointing `DATABASE_URL` at the **direct** string,
 because migrations cannot run through a transaction-mode pooler:
 
 ```bash
+DATABASE_URL="<direct-unpooled-url>" npx prisma migrate status   # check first
 DATABASE_URL="<direct-unpooled-url>" npx prisma migrate deploy
 ```
 
-Use `migrate deploy`, never `migrate dev` — the latter can reset data.
+Use `migrate deploy`, never `migrate dev` — the latter can reset data. On a promoted database
+(step 1) `status` will likely report everything already applied and `deploy` is a no-op.
 
 **4. Check the function limit.** The analysis route declares `maxDuration = 300`. On Vercel Hobby
 that needs Fluid Compute (the default for new projects); classic serverless caps at 60s. If a long
 map-reduce is being cut short, either raise the limit or lower `MAP_REDUCE_TOKEN_THRESHOLD` so each
 call does less work.
 
-**5. Claim the seed data, if you want it.** Books created before accounts existed belong to `userId`
-`"local"` and no account can see them. Register, confirm the address, then run
-`npx tsx scripts/claim-library.ts you@example.com` against the production database.
+**5. Claim pre-account data, if there is any.** Books created before accounts existed belong to
+`userId` `"local"` and no account can see them. Register, confirm the address, then run
+`npx tsx scripts/claim-library.ts you@example.com` against the production database. Skip this
+entirely when no such rows exist — on a promoted database whose books already belong to a real
+account, the script has nothing to move.
 
 Registration is open to anyone who can receive email. Analysis runs are billed to the single
 provider key configured above, so a publicly reachable deployment is a publicly usable API key.
