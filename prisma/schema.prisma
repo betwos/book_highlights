@@ -55,6 +55,10 @@ model Highlight {
 
 model ImportBatch {
   id            String       @id @default(cuid())
+  /// Owner of the staged rows. Without it the commit route can only check that a
+  /// batch id exists, which lets any signed-in account import another account's
+  /// staged highlight text into its own books.
+  userId        String       @default("local")
   filename      String
   rowCount      Int
   importedCount Int          @default(0)
@@ -64,6 +68,8 @@ model ImportBatch {
   status        ImportStatus @default(pending)
   createdAt     DateTime     @default(now())
   highlights    Highlight[]
+
+  @@index([userId, status, createdAt])
 }
 
 model Analysis {
