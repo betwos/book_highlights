@@ -1,6 +1,6 @@
 # Book Highlights — codebase handoff
 
-Written for an AI agent picking this repo up cold. Current as of `main` @ `4448596`.
+Written for an AI agent picking this repo up cold. Current as of `main` @ `592ef6a`.
 
 `SPEC.md` is the original v1 specification and still the best explanation of *why*
 the design is what it is. It is no longer a complete description of *what exists* —
@@ -30,7 +30,7 @@ Tailwind v4 · Auth.js v5 · vitest · papaparse · sharp · Vercel Blob.
 |---|---|
 | `npm run dev` | Dev server. |
 | `npm run lint` | `tsc --noEmit`. No ESLint in this repo. |
-| `npm test` | vitest, 81 tests, no DB or API key needed. |
+| `npm test` | vitest, 66 tests, no DB or API key needed. |
 | `npm run build` | `prisma generate` then `next build`. **Does not migrate.** |
 | `npm run seed` | Fixture data, owned by `userId "local"`. |
 | `npx tsx scripts/try-analysis.ts` | Exercises the AI layer alone. Costs real tokens. |
@@ -83,9 +83,9 @@ src/middleware.ts    the access gate
 src/app/             routes, pages, API route handlers
 src/actions/         Server Actions: books, highlights, auth
 src/components/      UI; import/ holds the CSV flow
-src/lib/             db, user, hash, storage, accounts, verification, email,
-                     auth-constants, analysis, csv/, ai/
-tests/               vitest (9 files, 81 tests)
+src/lib/             db, user, hash, storage, accounts, auth-constants,
+                     analysis, csv/, ai/
+tests/               vitest (9 files, 66 tests)
 ```
 
 ## 5. Where the code has moved past SPEC.md
@@ -113,6 +113,7 @@ cover route needs a `bookId` that does not exist until `createBook` runs.
 
 | Commit | What |
 |---|---|
+| `592ef6a` | Drop email confirmation — registration is one step, no mail vendor. |
 | `4448596` | Give staged imports an owner — closes the import-commit ownership hole. |
 | `c63c7f6` | Keep tsx scripts clear of the auth runtime. |
 | `8f3e46f` | Replace the single-account gate with email/password accounts. |
@@ -126,16 +127,26 @@ Anyone can register with email + password; **each account has a private library*
 this), so multi-tenancy became a change to what `currentUserId()` *returns* — but it
 now reads the session and is therefore **async at all 13 call sites**.
 
-Email must be confirmed before sign-in. A single-use 6-digit code (CSPRNG), 10-minute
-expiry, dead after 5 wrong guesses, reissuable once a minute. **Only a sha256 is
-stored**, so the database never holds a live code. `src/lib/verification.ts` holds the
-pure rules; `src/actions/auth.ts` the persistence.
-
 Auth.js is split in two because middleware runs on the **edge** where bcrypt and
 Prisma cannot go: `src/auth.config.ts` (edge-safe) vs `src/auth.ts` (full).
 
 Rows predating accounts carry `userId "local"` and are invisible to every account —
-not deleted. `scripts/claim-library.ts <email>` hands them to a confirmed account.
+not deleted. `scripts/claim-library.ts <email>` hands them to a registered account.
+
+### No email confirmation (`592ef6a`)
+
+There was a confirmation step — a single-use 6-digit code, hashed at rest — and it is
+gone. `register` now creates the account and signs it in within the one request;
+`authorize` checks the password and nothing else. Deleted with it: `lib/verification.ts`,
+`lib/email.ts`, `/verify`, `VerifyForm`, the `resend` dependency, and the
+`VerificationCode` table and `User.emailVerified` column
+(`20260903000000_drop_email_confirmation`, destructive both ways).
+
+**What this costs, stated plainly.** An address used to be proven before it could be a
+login. Nothing proves it now, so a stored address is a login and not a way to reach
+anyone — and `isEmailShaped` in `accounts.ts`, written as a cheap typo check standing in
+front of the real validation, *is* the validation now. Reintroducing anything that mails
+a user (a password reset, most obviously) means bringing a mail vendor back from zero.
 
 ### Import batch ownership (`4448596`)
 
@@ -167,14 +178,12 @@ README steps 3 and 5 no-ops here. Two consequences worth knowing before you touc
   `migrate dev` can reset data, and seeding injects fixture rows into a live library.
 - `scripts/claim-library.ts` has nothing to claim — there are no `"local"`-owned rows.
 
-Still genuinely outstanding: import the repo as a Vercel project, add a Blob store,
-create a Resend key with a verified sender domain, and set the environment. The
+Still genuinely outstanding: import the repo as a Vercel project, add a Blob store, and
+set the environment. (No mail vendor — the app sends no email since `592ef6a`.) The
 variables that fail *silently* rather than loudly:
 
 - `STORAGE_DRIVER` must be `blob` — serverless filesystems are ephemeral and read-only,
   so covers would vanish. (No covers exist yet, so nothing needs migrating into Blob.)
-- `RESEND_API_KEY` must be set, with `EMAIL_FROM` on the verified domain, or
-  confirmation codes only reach a server log nobody reads and no signup can complete.
 - The provider key must match `AI_PROVIDER`. This deployment runs `gemini`, so
   `GEMINI_API_KEY` is the one that matters; an `ANTHROPIC_API_KEY` alone leaves every
   analysis run broken.
@@ -188,7 +197,8 @@ and classic Hobby serverless caps at 60s.
 
 Deliberate, chosen by the owner after the tradeoff was raised. Every account's
 analysis runs bill to the single configured provider key, so a public deployment is a
-publicly usable API key. Mitigations if this becomes a problem: invite codes, a domain
+publicly usable API key. Cheaper to abuse since `592ef6a` removed address confirmation:
+signing up no longer costs an attacker even a working mailbox. Mitigations if this becomes a problem: invite codes, a domain
 allowlist, per-user cost caps, or users supplying their own key.
 
 ### 7.3 Smaller items
@@ -199,8 +209,9 @@ allowlist, per-user cost caps, or users supplying their own key.
 - No cover uploader on `/books/new` (§5).
 - `SPEC.md` has no section covering §5's four divergences. The spec's own closing note
   says changes like these should get one.
-- No password reset flow exists. Now sharper than it reads: the only account is the
-  owner's, so a forgotten password means a manual database edit, not a support ticket.
+- No password reset flow exists, and since `592ef6a` there is no mail vendor to build one
+  on. Sharper than it reads: the only account is the owner's, so a forgotten password
+  means a manual database edit, not a support ticket.
 
 ## 8. Gotchas that will bite you
 
@@ -208,10 +219,9 @@ allowlist, per-user cost caps, or users supplying their own key.
   rather than falling back — a query that ran unscoped would leak another account's
   library.
 - **`src/lib/auth-constants.ts` must import nothing.** Two kinds of caller depend on
-  it: client components (which cannot take `node:crypto` or bcrypt into the browser
-  bundle) and standalone `tsx` scripts (which would otherwise boot Auth.js). Importing
-  `verification.ts` into a client component **fails the build**; both mistakes have
-  already been made once here.
+  it: client components (which cannot take bcrypt into the browser bundle) and
+  standalone `tsx` scripts (which would otherwise boot Auth.js). Importing `accounts.ts`
+  into a client component **fails the build**; that mistake has been made once here.
 - **Windows: `prisma generate` fails with `EPERM`** renaming
   `query_engine-windows.dll.node` while a dev server is running — the DLL is mapped.
   Stop the dev server first.
@@ -225,20 +235,18 @@ allowlist, per-user cost caps, or users supplying their own key.
 - **Every page is dynamic (`ƒ`)** because the root layout reads the session. Expected.
 - **Switching `AI_PROVIDER` marks existing analyses stale** — `model` is part of the
   cache key. That is intended, not a bug.
-- Locally, confirmation codes are printed to the `npm run dev` terminal when
-  `RESEND_API_KEY` is unset. No mail vendor needed for development.
 
 ## 9. Verifying a change
 
 ```bash
 npm run lint     # tsc --noEmit
-npm test         # 81 tests, no DB or key needed
+npm test         # 66 tests, no DB or key needed
 npm run build    # catches client/server bundle violations the others miss
 ```
 
 Run all three. The build is the only one that catches a Node-only import reaching a
 client component, and `tsc` alone will happily let that through.
 
-For an end-to-end check: apply migrations, `npm run seed`, register at `/signup`, read
-the code off the dev terminal, confirm, then
-`npx tsx scripts/claim-library.ts <your-email>` to see the seeded books.
+For an end-to-end check: apply migrations, `npm run seed`, register at `/signup` — which
+lands you signed in — then `npx tsx scripts/claim-library.ts <your-email>` to see the
+seeded books.
