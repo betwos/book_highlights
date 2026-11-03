@@ -16,7 +16,9 @@ describe("filterLibraryBooks", () => {
   });
 
   it("groups unanalyzed, stale, and failed books as needing attention", () => {
-    expect(filterLibraryBooks(books, "", "needs-attention", "recent").map((b) => b.id)).toEqual(["2", "3", "5"]);
+    expect(
+      filterLibraryBooks(books, "", "needs-attention", "recent").map((b) => b.id),
+    ).toEqual(["2", "3", "5"]);
   });
 
   it("filters analyzed and currently analyzing books independently", () => {
@@ -25,7 +27,9 @@ describe("filterLibraryBooks", () => {
   });
 
   it("combines text and status filters", () => {
-    expect(filterLibraryBooks(books, "the", "needs-attention", "recent").map((b) => b.id)).toEqual(["2", "5"]);
+    expect(
+      filterLibraryBooks(books, "the", "needs-attention", "recent").map((b) => b.id),
+    ).toEqual(["2", "5"]);
   });
 
   it("sorts alphabetically without mutating the original list", () => {
