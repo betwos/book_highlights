@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { currentUserId } from "@/lib/user";
 import { highlightSetHash } from "@/lib/hash";
 import { currentModel, PROMPT_VERSION } from "@/lib/analysis";
-import { BookCard, type AnalysisBadge } from "@/components/book-card";
+import { LibraryBrowser } from "@/components/library-browser";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/primitives";
 
@@ -79,11 +79,7 @@ export default async function LibraryPage() {
           </Button>
         </EmptyState>
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {cards.map((book) => (
-            <BookCard key={book.id} book={book} />
-          ))}
-        </div>
+        <LibraryBrowser books={cards} />
       )}
     </div>
   );
