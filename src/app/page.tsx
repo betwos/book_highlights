@@ -4,6 +4,7 @@ import { currentUserId } from "@/lib/user";
 import { highlightSetHash } from "@/lib/hash";
 import { currentModel, PROMPT_VERSION } from "@/lib/analysis";
 import { LibraryBrowser } from "@/components/library-browser";
+import type { AnalysisBadge } from "@/components/book-card";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/primitives";
 
