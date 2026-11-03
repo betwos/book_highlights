@@ -64,6 +64,8 @@ model ImportBatch {
   importedCount Int          @default(0)
   skippedCount  Int          @default(0)
   mapping       Json
+  /// Provider usage and estimated list-price cost for AI-assisted column matching.
+  mappingUsage  Json?
   stagedRows    Json?
   status        ImportStatus @default(pending)
   createdAt     DateTime     @default(now())
