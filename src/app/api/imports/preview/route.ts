@@ -74,6 +74,9 @@ export async function POST(req: Request) {
       filename: file.name,
       rowCount: parsed.rows.length,
       mapping: mapping as unknown as Prisma.InputJsonValue,
+      ...(resolved.mappingUsage
+        ? { mappingUsage: resolved.mappingUsage as unknown as Prisma.InputJsonValue }
+        : {}),
       stagedRows: parsed.rows as unknown as Prisma.InputJsonValue,
       status: "pending",
     },
@@ -86,6 +89,7 @@ export async function POST(req: Request) {
     rowCount: parsed.rows.length,
     headers: parsed.headers,
     mapping,
+    mappingUsage: resolved.mappingUsage,
     mappingSources: resolved.sources,
     ignoredHeaders: resolved.ignoredHeaders,
     aiError: resolved.aiError,
