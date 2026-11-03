@@ -12,12 +12,22 @@ import { isMappingValid, unassignedHeaders, type Mapping } from "@/lib/csv/detec
 import type { MappingSources } from "@/lib/csv/aliases";
 import { plural } from "@/lib/utils";
 
+type MappingUsage = {
+  tokensIn: number;
+  tokensOut: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+  model: string;
+  estimatedCostDollars: number;
+};
+
 type PreviewResponse = {
   importBatchId: string;
   filename: string;
   rowCount: number;
   headers: string[];
   mapping: Mapping;
+  mappingUsage?: MappingUsage | null;
   mappingSources?: MappingSources;
   ignoredHeaders?: string[];
   aiError?: string | null;
@@ -35,6 +45,7 @@ type ImportFile =
       rowCount: number;
       headers: string[];
       mapping: Mapping;
+      mappingUsage: MappingUsage | null;
       mappingSources?: MappingSources;
       ignoredHeaders: string[];
       aiError?: string | null;
@@ -153,6 +164,7 @@ export default function ImportPage() {
           rowCount: preview.rowCount,
           headers: preview.headers,
           mapping: preview.mapping,
+          mappingUsage: preview.mappingUsage ?? null,
           mappingSources: preview.mappingSources,
           ignoredHeaders: ignored,
           aiError: preview.aiError,
@@ -334,6 +346,20 @@ export default function ImportPage() {
                 <span className="font-medium text-[var(--foreground)]">{selected.filename}</span> —{" "}
                 {plural(selected.rowCount, "row")}
               </p>
+              {selected.mappingUsage ? (
+                <p className="text-xs text-[var(--muted-foreground)]">
+                  AI column matching:{" "}
+                  {(
+                    selected.mappingUsage.tokensIn +
+                    selected.mappingUsage.cacheReadTokens +
+                    selected.mappingUsage.cacheCreationTokens
+                  ).toLocaleString()}{" "}
+                  input / {selected.mappingUsage.tokensOut.toLocaleString()} output tokens ·
+                  estimated $
+                  {selected.mappingUsage.estimatedCostDollars.toFixed(5)} at{" "}
+                  {selected.mappingUsage.model} list pricing
+                </p>
+              ) : null}
 
               {showMapper ? (
                 <div className="space-y-3">
