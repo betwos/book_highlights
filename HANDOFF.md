@@ -203,9 +203,9 @@ allowlist, per-user cost caps, or users supplying their own key.
 
 ### 7.3 Smaller items
 
-- Column-matcher token usage is discarded — `matchColumns()` in
-  `src/lib/ai/columns.ts` returns `usage`; `src/lib/csv/resolve.ts` destructures only
-  `{ assignments }`. A cost blind spot; persisting it needs a new `ImportBatch` field.
+- AI column-matcher token usage and an estimated list-price cost are now stored on
+  `ImportBatch.mappingUsage` and shown in the import preview. The estimate uses the
+  configured provider/model pricing and is not a billing invoice.
 - No cover uploader on `/books/new` (§5).
 - `SPEC.md` has no section covering §5's four divergences. The spec's own closing note
   says changes like these should get one.
