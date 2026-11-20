@@ -229,10 +229,27 @@ export default function ImportPage() {
             }),
           }),
         });
-        const json = await res.json();
+        const responseText = await res.text();
+        let json: { error?: string } & Partial<CommitResult> = {};
+        try {
+          json = responseText ? JSON.parse(responseText) : {};
+        } catch {
+          // A framework/proxy error page is often HTML, not JSON. Preserve the
+          // HTTP status instead of collapsing this into the generic catch below.
+        }
 
         if (!res.ok) {
-          failures.push(`${file.filename}: ${json.error ?? "could not be committed"}`);
+          failures.push(
+            `${file.filename}: ${json.error ?? `The server returned HTTP ${res.status}${res.statusText ? ` (${res.statusText})` : ""} without a readable error message. Your staged import is still available; try again.`}`,
+          );
+          failedIds.add(file.id);
+          continue;
+        }
+
+        if (!json.books || !json.totals) {
+          failures.push(
+            `${file.filename}: The server response was incomplete, so the app cannot confirm whether the import finished. Check your library before retrying to avoid duplicates.`,
+          );
           failedIds.add(file.id);
           continue;
         }
@@ -241,8 +258,14 @@ export default function ImportPage() {
         books.push(...partial.books);
         imported += partial.totals.imported;
         skipped += partial.totals.skipped;
-      } catch {
-        failures.push(`${file.filename}: the import could not be committed`);
+      } catch (cause) {
+        const detail =
+          cause instanceof TypeError
+            ? "Could not reach the server. Check your connection and try again."
+            : cause instanceof Error
+              ? cause.message
+              : "An unexpected client error occurred.";
+        failures.push(`${file.filename}: ${detail} Your staged import is still available.`);
         failedIds.add(file.id);
       }
     }
