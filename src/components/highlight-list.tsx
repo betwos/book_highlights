@@ -5,6 +5,7 @@ import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { Input } from "@/components/ui/field";
 import { HighlightItem } from "@/components/highlight-item";
 import { plural } from "@/lib/utils";
+import { matchesHighlightQuery } from "@/lib/highlight-search";
 
 export type HighlightDto = {
   id: string;
@@ -42,14 +43,10 @@ export function HighlightList({
     return map;
   }, [highlights]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return live;
-    return live.filter(
-      (h) =>
-        h.text.toLowerCase().includes(q) || (h.note ?? "").toLowerCase().includes(q),
-    );
-  }, [live, query]);
+  const filtered = useMemo(
+    () => live.filter((highlight) => matchesHighlightQuery(highlight, query)),
+    [live, query],
+  );
 
   const onDeleted = (id: string) => setDeleted((prev) => new Set(prev).add(id));
 
