@@ -41,7 +41,7 @@ function coerceMapping(raw: Record<string, string | null>): Mapping {
   return mapping;
 }
 
-export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
+async function commitImport(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const denied = await unauthorized();
   if (denied) return denied;
 
@@ -175,4 +175,35 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     books,
     totals: { imported: totalImported, skipped: totalSkipped },
   });
+}
+
+
+/** Convert expected database failures into actionable messages without exposing
+ * SQL, credentials, or internal implementation details to the browser. */
+function describeCommitError(error: unknown): string {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    switch (error.code) {
+      case "P1001":
+      case "P1002":
+      case "P1017":
+        return "The database is temporarily unavailable. Your staged CSV has been kept; wait a moment and try importing again.";
+      case "P2002":
+        return "A conflicting record already exists. Refresh your library and try importing again.";
+      case "P2003":
+        return "A related book or highlight no longer exists. Refresh the import page and try again.";
+      case "P2025":
+        return "A record needed for this import could not be found. Refresh the import page and try again.";
+    }
+  }
+
+  return "The server encountered an unexpected error while saving this import. Your staged CSV has been kept; try again. If it happens again, contact support and include the filename and approximate time.";
+}
+
+export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  try {
+    return await commitImport(req, ctx);
+  } catch (error) {
+    console.error("[imports/commit] Import failed:", error);
+    return NextResponse.json({ error: describeCommitError(error) }, { status: 500 });
+  }
 }
